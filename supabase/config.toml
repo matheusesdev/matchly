@@ -1,0 +1,7 @@
+project_id = "matchly"
+
+[functions.analyze-resume]
+verify_jwt = false
+
+[functions.optimize-resume]
+verify_jwt = false

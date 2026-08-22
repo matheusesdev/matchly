@@ -1,0 +1,25 @@
+.flow-error {
+  margin: 15px 0 0;
+  padding: 11px 13px;
+  border: 1px solid #f1c9b8;
+  border-radius: 10px;
+  background: #fff0ea;
+  color: #a64726;
+  font-size: 11px;
+}
+
+.optimized-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font: 11px/1.7 'DM Sans', sans-serif;
+}
+
+.header-cta {
+  padding: 10px 14px;
+  font-size: 10px;
+  box-shadow: none;
+}
+
+@media (max-width: 800px) {
+  .header-cta { display: none; }
+}
