@@ -1,16 +1,13 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { authorizeMvpUser } from '../_shared/auth.ts'
 import { corsHeaders } from '../_shared/cors.ts'
 import { callGemini } from '../_shared/gemini.ts'
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
-    const authorization = request.headers.get('Authorization') ?? ''
-    const accessToken = authorization.replace(/^Bearer\s+/i, '')
-    if (!accessToken) return json({ error: 'Sessão ausente. Entre novamente para continuar.' }, 401)
-    const client = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authorization } } })
-    const { data: { user } } = await client.auth.getUser(accessToken)
-    if (!user) return json({ error: 'Não autenticado' }, 401)
+    const access = await authorizeMvpUser(request)
+    if (!access.allowed) return json({ error: access.error }, access.status)
+    const { client } = access
     const { analysis_id: analysisId } = await request.json()
     const { data, error } = await client.from('analyses').select('id, job_text, gaps, missing_keywords, resumes(raw_text)').eq('id', analysisId).single()
     if (error || !data) return json({ error: 'Análise não encontrada' }, 404)
