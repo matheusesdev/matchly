@@ -37,7 +37,7 @@ function Header({ user, onAuth, onStart, landing }: { user: User | null; onAuth:
       {isSupabaseConfigured && (user
         ? <button className="account-button" onClick={() => supabase?.auth.signOut()} title="Sair"><UserCircle weight="fill" /><span>{user.email}</span></button>
         : <button className="outline" onClick={onAuth}>Entrar</button>)}
-      {landing && <button className="primary header-cta" onClick={onStart}>Começar grátis <ArrowRight /></button>}
+      {landing && <button className="primary header-cta" onClick={onStart}>Acesso ao MVP <ArrowRight /></button>}
     </div>
   </header>
 }
@@ -170,6 +170,14 @@ export default function App() {
     const { data } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null))
     return () => data.subscription.unsubscribe()
   }, [])
+  const start = () => {
+    setError('')
+    if (isSupabaseConfigured && !user) {
+      setAuthOpen(true)
+      return
+    }
+    setStep('input')
+  }
   const analyze = async (file: File, jobText: string) => {
     setError('')
     if (isSupabaseConfigured && !user) { setAuthOpen(true); setError('Entre na sua conta para iniciar uma análise.'); return }
@@ -186,14 +194,14 @@ export default function App() {
     finally { setBusy(false) }
   }
   const progress = step === 'input' || step === 'loading' ? 1 : step === 'result' ? 2 : 3
-  return <div className="app"><Header user={user} onAuth={() => setAuthOpen(true)} onStart={() => setStep('input')} landing={step === 'landing'} />
+  return <div className="app"><Header user={user} onAuth={() => setAuthOpen(true)} onStart={start} landing={step === 'landing'} />
     {step !== 'landing' && <Progress active={progress} />}
-    {step === 'landing' && <LandingPage onStart={() => setStep('input')} />}
+    {step === 'landing' && <LandingPage onStart={start} />}
     {step === 'input' && <InputScreen onAnalyze={analyze} error={error} />}
     {step === 'loading' && <LoadingScreen />}
     {step === 'result' && <ResultScreen analysis={analysis} onOptimize={optimize} busy={busy} error={error} />}
     {step === 'optimized' && <OptimizedScreen optimized={optimized} />}
     <footer><Logo /><span>Currículos mais relevantes. Carreiras mais próximas.</span><small>© 2026 Matchly</small></footer>
-    <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
+    <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} onAuthenticated={() => { setAuthOpen(false); setStep('input') }} />
   </div>
 }

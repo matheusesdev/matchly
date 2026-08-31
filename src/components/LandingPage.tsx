@@ -22,7 +22,7 @@ export function LandingPage({ onStart }: Props) {
         <div className="landing-pill"><Sparkle weight="fill" /> IA especializada em recrutamento</div>
         <h1>Não envie só um currículo.<br /><em>Envie o currículo certo.</em></h1>
         <p>Entenda o que cada vaga procura e transforme seu currículo em uma versão mais relevante, clara e preparada para sistemas ATS.</p>
-        <div className="hero-actions"><button className="primary landing-cta" onClick={onStart}>Analisar meu currículo <ArrowRight weight="bold" /></button><span><ShieldCheck weight="fill" /> Sem inventar experiências</span></div>
+        <div className="hero-actions"><button className="primary landing-cta" onClick={onStart}>Acesso ao MVP <ArrowRight weight="bold" /></button><span><ShieldCheck weight="fill" /> Testes fechados para convidados</span></div>
         <div className="hero-proof"><div className="avatars"><i>MO</i><i>LR</i><i>CA</i><i>+</i></div><p><strong>Feito para quem não quer passar despercebido</strong><br />Análise personalizada em poucos minutos</p></div>
       </div>
       <div className="hero-product">

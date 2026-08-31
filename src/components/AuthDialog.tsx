@@ -2,9 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { ArrowRight, Envelope, LockKey, X } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabase'
 
-type Props = { open: boolean; onClose: () => void }
+type Props = { open: boolean; onClose: () => void; onAuthenticated: () => void }
 
-export function AuthDialog({ open, onClose }: Props) {
+export function AuthDialog({ open, onClose, onAuthenticated }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -18,7 +18,7 @@ export function AuthDialog({ open, onClose }: Props) {
     const result = await supabase.auth.signInWithPassword({ email, password })
     setBusy(false)
     if (result.error) return setMessage(result.error.message)
-    onClose()
+    onAuthenticated()
   }
 
   return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
