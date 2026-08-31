@@ -56,7 +56,6 @@ A landing page possui motion orientado ao produto, revelações por scroll, micr
 - Persistência de currículos e análises no Postgres.
 - Isolamento de dados por usuário com Row Level Security.
 - Retry progressivo e fallback de modelo durante indisponibilidades da IA.
-- Modo demonstrativo sem Supabase configurado.
 - Estados de carregamento e erros acionáveis.
 
 ### Roadmap
@@ -90,7 +89,7 @@ flowchart LR
 - **Autorização em profundidade:** as funções validam explicitamente o access token e o banco aplica RLS.
 - **IA com saída estruturada:** o Gemini retorna JSON para reduzir ambiguidade.
 - **Resiliência:** erros `429`, `500`, `502`, `503` e `504` recebem retry exponencial e fallback.
-- **Progressive enhancement:** sem backend configurado, a interface continua navegável em modo demonstrativo.
+- **Falha segura:** sem backend configurado, o fluxo funcional permanece bloqueado.
 
 ## Stack
 

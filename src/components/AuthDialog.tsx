@@ -13,7 +13,7 @@ export function AuthDialog({ open, onClose, onAuthenticated }: Props) {
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (!supabase) return
+    if (!supabase) return setMessage('Serviço temporariamente indisponível.')
     setBusy(true); setMessage('')
     const result = await supabase.auth.signInWithPassword({ email, password })
     setBusy(false)
@@ -32,7 +32,7 @@ export function AuthDialog({ open, onClose, onAuthenticated }: Props) {
         <label><span>E-mail</span><div><Envelope /><input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="voce@email.com" /></div></label>
         <label><span>Senha</span><div><LockKey /><input required minLength={6} type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo de 6 caracteres" /></div></label>
         {message && <div className="auth-message">{message}</div>}
-        <button className="primary" disabled={busy}>{busy ? 'Aguarde...' : 'Entrar'} <ArrowRight /></button>
+        <button className="primary" disabled={busy || !supabase}>{busy ? 'Aguarde...' : 'Entrar'} <ArrowRight /></button>
       </form>
       <p className="auth-access-note">O acesso é liberado manualmente durante esta fase.</p>
     </section>

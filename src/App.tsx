@@ -172,7 +172,7 @@ export default function App() {
   }, [])
   const start = () => {
     setError('')
-    if (isSupabaseConfigured && !user) {
+    if (!isSupabaseConfigured || !user) {
       setAuthOpen(true)
       return
     }
@@ -182,7 +182,7 @@ export default function App() {
     setError('')
     if (isSupabaseConfigured && !user) { setAuthOpen(true); setError('Entre na sua conta para iniciar uma análise.'); return }
     setStep('loading')
-    if (!isSupabaseConfigured) { setTimeout(() => setStep('result'), 2200); return }
+    if (!isSupabaseConfigured) { setError('Serviço temporariamente indisponível.'); setStep('landing'); return }
     try { setAnalysis(await analyzeResume(file, jobText)); setStep('result') }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível concluir a análise.'); setStep('input') }
   }
