@@ -1,0 +1,25 @@
+.mock-ring strong,
+.mock-score h4,
+.mock-grid strong {
+  animation: metricPop .38s cubic-bezier(.2, .9, .3, 1.25);
+}
+
+.mock-score,
+.mock-grid > div {
+  transition: box-shadow .35s ease, transform .35s ease;
+}
+
+.product-window.is-score-optimized .mock-score {
+  box-shadow: 0 0 0 2px rgba(223, 250, 133, .28), 0 12px 25px rgba(21, 93, 73, .18);
+  transform: translateY(-1px);
+}
+
+.product-window.is-details-optimized .mock-grid > div {
+  box-shadow: 0 8px 18px rgba(25, 54, 43, .08);
+  transform: translateY(-1px);
+}
+
+@keyframes metricPop {
+  from { opacity: .35; transform: translateY(5px) scale(.94); }
+  to { opacity: 1; transform: none; }
+}

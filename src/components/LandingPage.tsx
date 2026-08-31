@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowRight, Briefcase, Check, CheckCircle, FileDoc, Lightning,
   MagicWand, ShieldCheck, Sparkle, Target, TrendUp,
@@ -7,12 +7,39 @@ import {
 type Props = { onStart: () => void }
 
 export function LandingPage({ onStart }: Props) {
+  const [scoreOptimized, setScoreOptimized] = useState(false)
+  const [detailsOptimized, setDetailsOptimized] = useState(false)
+
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => entry.isIntersecting && entry.target.classList.add('is-visible'))
     }, { threshold: 0.12 })
     document.querySelectorAll('[data-reveal]').forEach(element => observer.observe(element))
     return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setScoreOptimized(true)
+      setDetailsOptimized(true)
+      return
+    }
+
+    let scoreTimer: ReturnType<typeof setTimeout>
+    let detailsTimer: ReturnType<typeof setTimeout>
+    const runCycle = () => {
+      setScoreOptimized(false)
+      setDetailsOptimized(false)
+      scoreTimer = setTimeout(() => setScoreOptimized(true), 1700)
+      detailsTimer = setTimeout(() => setDetailsOptimized(true), 3150)
+    }
+    runCycle()
+    const cycle = setInterval(runCycle, 4800)
+    return () => {
+      clearInterval(cycle)
+      clearTimeout(scoreTimer)
+      clearTimeout(detailsTimer)
+    }
   }, [])
 
   return <main className="landing">
@@ -27,9 +54,9 @@ export function LandingPage({ onStart }: Props) {
       </div>
       <div className="hero-product">
         <div className="float-card float-top"><span><TrendUp weight="fill" /></span><div><strong>+28 pontos</strong><small>após a otimização</small></div></div>
-        <div className="product-window"><div className="match-scan"><span>Comparando com a vaga</span></div>
+        <div className={`product-window ${scoreOptimized ? 'is-score-optimized' : ''} ${detailsOptimized ? 'is-details-optimized' : ''}`}><div className="match-scan"><span>Otimizando currículo</span></div>
           <div className="window-bar"><div><i /><i /><i /></div><span>matchly.app/análise</span></div>
-          <div className="product-content"><div className="mock-title"><span><Sparkle weight="fill" /> ANÁLISE CONCLUÍDA</span><h3>Você está no caminho certo.</h3></div><div className="mock-score"><div className="mock-ring"><strong>78</strong><small>/100</small></div><div><small>ADERÊNCIA À VAGA</small><h4>Boa compatibilidade</h4><p>Seu perfil atende à maior parte dos requisitos desta oportunidade.</p></div></div><div className="mock-grid"><div><span className="mock-icon good"><Check /></span><strong>6 pontos fortes</strong><small>Experiências alinhadas</small></div><div><span className="mock-icon warm"><Target /></span><strong>2 oportunidades</strong><small>Ajustes recomendados</small></div></div></div>
+          <div className="product-content"><div className="mock-title"><span><Sparkle weight="fill" /> ANÁLISE CONCLUÍDA</span><h3>Você está no caminho certo.</h3></div><div className="mock-score"><div className="mock-ring"><strong key={scoreOptimized ? 'score-after' : 'score-before'}>{scoreOptimized ? 78 : 50}</strong><small>/100</small></div><div><small>ADERÊNCIA À VAGA</small><h4 key={scoreOptimized ? 'label-after' : 'label-before'}>{scoreOptimized ? 'Boa compatibilidade' : 'Compatibilidade moderada'}</h4><p>{scoreOptimized ? 'Seu perfil agora destaca os requisitos mais relevantes desta oportunidade.' : 'Seu perfil tem potencial, mas ainda precisa de alguns ajustes.'}</p></div></div><div className="mock-grid"><div><span className="mock-icon good"><Check /></span><strong key={detailsOptimized ? 'strengths-after' : 'strengths-before'}>{detailsOptimized ? 6 : 3} pontos fortes</strong><small>{detailsOptimized ? 'Experiências alinhadas' : 'Pouco evidenciados'}</small></div><div><span className="mock-icon warm"><Target /></span><strong key={detailsOptimized ? 'gaps-after' : 'gaps-before'}>{detailsOptimized ? 2 : 5} oportunidades</strong><small>{detailsOptimized ? 'Ajustes recomendados' : 'Ajustes necessários'}</small></div></div></div>
         </div>
         <div className="float-card float-bottom"><CheckCircle weight="fill" /><span><strong>Pronto para ATS</strong><small>Estrutura validada</small></span></div>
       </div>
