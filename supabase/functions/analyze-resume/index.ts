@@ -8,7 +8,7 @@ import { callGemini } from '../_shared/gemini.ts'
 import { isMultipartRequest, json, requestId } from '../_shared/http.ts'
 import { parseAnalysis } from '../_shared/ai-output.ts'
 import { ANALYSIS_SCHEMA, buildAnalysisPrompt } from '../_shared/prompts.ts'
-import { MAX_RESUME_BYTES, detectResumeKind, tidyExtractedText } from '../_shared/files.ts'
+import { MAX_RESUME_BYTES, detectResumeKind, sha256Hex, tidyExtractedText } from '../_shared/files.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
 
 const MAX_RESUME_CHARS = 20_000
@@ -39,8 +39,14 @@ Deno.serve(async (request) => {
     if (resumeText.length > MAX_RESUME_CHARS) return json(request, { error: 'O currículo é longo demais. Envie uma versão de até cerca de 5 páginas.' }, 422, id)
     if (!(await consumeQuota(client, userId, 'analyze', dailyLimit('analyze', (n) => Deno.env.get(n))))) return json(request, { error: 'Você atingiu o limite diário de análises. Tente novamente amanhã.' }, 429, id)
     const analysis = parseAnalysis(await callGemini(buildAnalysisPrompt(jobText, resumeText), ANALYSIS_SCHEMA))
-    const { data: resume, error: resumeError } = await client.from('resumes').insert({ user_id: userId, original_filename: file.name, raw_text: resumeText }).select('id').single(); if (resumeError) throw resumeError
-    const { data: saved, error } = await client.from('analyses').insert({ user_id: userId, resume_id: resume.id, job_text: jobText, ...analysis }).select('id, match_score, missing_keywords, gaps, strengths').single(); if (error) throw error
+    const contentHash = await sha256Hex(resumeText)
+    const { data: existing } = await client.from('resumes').select('id').eq('user_id', userId).eq('content_hash', contentHash).limit(1).maybeSingle()
+    let resumeId: string | undefined = existing?.id
+    if (!resumeId) {
+      const { data: created, error: resumeError } = await client.from('resumes').insert({ user_id: userId, original_filename: file.name, raw_text: resumeText, content_hash: contentHash }).select('id').single(); if (resumeError) throw resumeError
+      resumeId = created.id
+    }
+    const { data: saved, error } = await client.from('analyses').insert({ user_id: userId, resume_id: resumeId, job_text: jobText, ...analysis }).select('id, match_score, missing_keywords, gaps, strengths').single(); if (error) throw error
     return json(request, { analysis_id: saved.id, ...saved }, 200, id)
   } catch (error) { console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown' })); return json(request, { error: 'Não foi possível concluir a análise.' }, 500, id) }
 })

@@ -15,3 +15,10 @@ export function detectResumeKind(filename: string, bytes: Uint8Array): ResumeFil
 export function tidyExtractedText(text: string): string {
   return text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
 }
+
+/** Hash estável do texto do currículo (normaliza espaços) para detectar reenvios do mesmo arquivo. */
+export async function sha256Hex(text: string): Promise<string> {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized))
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+}
