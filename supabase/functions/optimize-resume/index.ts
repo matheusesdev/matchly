@@ -1,4 +1,3 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { authorizeMvpUser } from '../_shared/auth.ts'
 import { corsHeaders, isAllowedOrigin } from '../_shared/cors.ts'
 import { callGemini } from '../_shared/gemini.ts'
