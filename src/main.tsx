@@ -5,6 +5,7 @@ import './styles.css'
 import './flow.css'
 import './landing.css'
 import './commercial.css'
+import './score-animation.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><App /></StrictMode>,

@@ -19,34 +19,6 @@ Buscamos uma pessoa com experiência em produtos digitais B2B, domínio de Figma
 
 Requisitos: 5+ anos de experiência, inglês avançado, métricas de produto e vivência com metodologias ágeis.`
 
-const demoAnalysis: AnalysisResult = {
-  analysis_id: 'demo',
-  match_score: 78,
-  strengths: ['Experiência com produtos digitais B2B', 'Domínio de Figma e prototipação', 'Criação e evolução de Design Systems', 'Vivência com discovery e pesquisa'],
-  missing_keywords: ['Métricas de produto', 'Inglês avançado'],
-  gaps: [
-    { area: 'Métricas de produto', descricao: 'A vaga valoriza decisões orientadas a dados, mas o exemplo não deixa essa experiência clara.' },
-    { area: 'Inglês avançado', descricao: 'Requisito explícito que não aparece no documento de exemplo.' },
-  ],
-}
-
-const demoOptimized: OptimizedResult = {
-  optimized_resume: `MARINA EXEMPLO
-Product Designer · Cidade, UF
-
-RESUMO
-Product Designer com experiência em produtos digitais B2B, discovery, pesquisa com usuários e prototipação de alta fidelidade.
-
-EXPERIÊNCIA PROFISSIONAL
-Product Designer · Empresa Exemplo
-- Condução de discovery e pesquisa com usuários.
-- Criação de fluxos e protótipos no Figma.
-
-HABILIDADES
-Figma · Design Systems · Discovery · Pesquisa com usuários`,
-  changes_summary: ['Resumo direcionado à vaga', 'Experiências reordenadas por relevância'],
-}
-
 function Logo() {
   return <div className="logo"><span><Sparkle weight="fill" /></span>matchly</div>
 }
@@ -59,7 +31,7 @@ function Header({ user, onAuth, onStart, landing }: { user: User | null; onAuth:
       {isSupabaseConfigured && (user
         ? <button className="account-button" onClick={() => supabase?.auth.signOut()} title="Sair"><UserCircle weight="fill" /><span>{user.email}</span></button>
         : <button className="outline" onClick={onAuth}>Entrar</button>)}
-      {landing && <button className="primary header-cta" onClick={onStart}>Começar grátis <ArrowRight /></button>}
+      {landing && <button className="primary header-cta" onClick={onStart}>Acesso ao MVP <ArrowRight /></button>}
     </div>
   </header>
 }
@@ -134,17 +106,12 @@ function ScoreRing({ score }: { score: number }) {
   return <div className="score-ring" style={{'--score': String(score)} as React.CSSProperties}><div><strong>{score}</strong><span>/100</span></div></div>
 }
 
-function DemoBanner() {
-  return <div className="demo-banner" role="note"><Sparkle weight="fill" /> Exemplo ilustrativo com dados fictícios. Conecte o Supabase para analisar o seu currículo.</div>
-}
-
-function ResultScreen({ analysis, demo, onOptimize, onReset, busy, error }: { analysis: AnalysisResult; demo: boolean; onOptimize: () => void; onReset: () => void; busy: boolean; error: string }) {
+function ResultScreen({ analysis, onOptimize, onReset, busy, error }: { analysis: AnalysisResult; onOptimize: () => void; onReset: () => void; busy: boolean; error: string }) {
   const score = analysis.match_score
   const strengths = analysis.strengths
   const gaps = analysis.gaps
   const dynamicKeywords = [...strengths.slice(0, 5).map(name => ({ name, found: true })), ...analysis.missing_keywords.map(name => ({ name, found: false }))]
   return <main className="result-wrap">
-    {demo && <DemoBanner />}
     <div className="result-title"><div><span className="eyebrow"><Sparkle weight="fill" /> Análise concluída</span><h1>{score >= 75 ? 'Você está no caminho certo.' : score >= 50 ? 'Há um bom caminho, com ajustes.' : 'Vale reforçar alguns pontos.'}</h1><p>Veja o que já combina com a vaga e o que ainda não aparece no seu currículo.</p></div><button className="outline" onClick={onReset}><FileArrowUp /> Trocar arquivos</button></div>
     <section className="score-card">
       <ScoreRing score={score} />
@@ -164,7 +131,7 @@ function ResultScreen({ analysis, demo, onOptimize, onReset, busy, error }: { an
   </main>
 }
 
-function OptimizedScreen({ optimized, demo, onBack }: { optimized: OptimizedResult; demo: boolean; onBack: () => void }) {
+function OptimizedScreen({ optimized, onBack }: { optimized: OptimizedResult; onBack: () => void }) {
   const [downloadError, setDownloadError] = useState('')
   const download = async () => {
     setDownloadError('')
@@ -172,7 +139,6 @@ function OptimizedScreen({ optimized, demo, onBack }: { optimized: OptimizedResu
     catch { setDownloadError('Não foi possível gerar o arquivo. Tente novamente.') }
   }
   return <main className="optimized-wrap">
-    {demo && <DemoBanner />}
     <div className="success-hero"><span><Check weight="bold" /></span><div><div className="eyebrow">Currículo otimizado</div><h1>Sua versão para esta vaga.</h1><p>Revise o texto antes de enviar: a IA só reorganiza e reescreve o que já estava no seu currículo.</p></div></div>
     <div className="document-layout">
       <aside className="changes panel"><h3><TrendUp weight="fill" /> O que mudou</h3><ul>{optimized.changes_summary.map(item => <li key={item}><CheckCircle weight="fill" /><span><strong>{item}</strong></span></li>)}</ul><div className="honesty"><ShieldCheck weight="fill" /><p><strong>Compromisso com a verdade</strong><br />Verificamos que nenhum número ou data novo foi adicionado. Confira o restante antes de enviar.</p></div><button className="outline" onClick={onBack}>Voltar à análise</button></aside>
@@ -199,33 +165,39 @@ export default function App() {
     const { data } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null))
     return () => data.subscription.unsubscribe()
   }, [])
+  const start = () => {
+    setError('')
+    if (!isSupabaseConfigured || !user) {
+      setAuthOpen(true)
+      return
+    }
+    setStep('input')
+  }
   const analyze = async (file: File, jobText: string) => {
     setError('')
     if (isSupabaseConfigured && !user) { setAuthOpen(true); setError('Entre na sua conta para iniciar uma análise.'); return }
     setStep('loading')
-    if (!isSupabaseConfigured) { setAnalysis(demoAnalysis); setTimeout(() => setStep('result'), 1200); return }
+    if (!isSupabaseConfigured) { setError('Serviço temporariamente indisponível.'); setStep('landing'); return }
     try { setAnalysis(await analyzeResume(file, jobText)); setStep('result') }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível concluir a análise.'); setStep('input') }
   }
   const optimize = async () => {
     if (!analysis) return
-    if (!isSupabaseConfigured) { setOptimized(demoOptimized); setStep('optimized'); return }
     setBusy(true); setError('')
     try { setOptimized(await optimizeResume(analysis.analysis_id)); setStep('optimized') }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível otimizar o currículo.') }
     finally { setBusy(false) }
   }
   const reset = () => { setAnalysis(null); setOptimized(null); setError(''); setStep('input') }
-  const demo = !isSupabaseConfigured
   const progress = step === 'input' || step === 'loading' ? 1 : step === 'result' ? 2 : 3
-  return <div className="app"><Header user={user} onAuth={() => setAuthOpen(true)} onStart={() => setStep('input')} landing={step === 'landing'} />
+  return <div className="app"><Header user={user} onAuth={() => setAuthOpen(true)} onStart={start} landing={step === 'landing'} />
     {step !== 'landing' && <Progress active={progress} />}
-    {step === 'landing' && <LandingPage onStart={() => setStep('input')} />}
+    {step === 'landing' && <LandingPage onStart={start} />}
     {step === 'input' && <InputScreen onAnalyze={analyze} error={error} />}
     {step === 'loading' && <LoadingScreen />}
-    {step === 'result' && analysis && <ResultScreen analysis={analysis} demo={demo} onOptimize={optimize} onReset={reset} busy={busy} error={error} />}
-    {step === 'optimized' && optimized && <OptimizedScreen optimized={optimized} demo={demo} onBack={() => setStep('result')} />}
+    {step === 'result' && analysis && <ResultScreen analysis={analysis} onOptimize={optimize} onReset={reset} busy={busy} error={error} />}
+    {step === 'optimized' && optimized && <OptimizedScreen optimized={optimized} onBack={() => setStep('result')} />}
     <footer><Logo /><span>Currículos mais relevantes. Carreiras mais próximas.</span><small>© 2026 Matchly</small></footer>
-    <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
+    <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} onAuthenticated={() => { setAuthOpen(false); setStep('input') }} />
   </div>
 }

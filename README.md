@@ -46,7 +46,8 @@ A landing page possui motion orientado ao produto, revelações por scroll, micr
 ### Implementadas
 
 - Landing page comercial responsiva.
-- Cadastro e login por e-mail com Supabase Auth.
+- Login por e-mail com Supabase Auth para usuários convidados.
+- Lista de acesso do MVP validada no backend antes de qualquer chamada à IA.
 - Upload de DOCX com limite de 5 MB.
 - Extração de texto no backend usando Mammoth.
 - Análise de aderência com Gemini.
@@ -55,7 +56,6 @@ A landing page possui motion orientado ao produto, revelações por scroll, micr
 - Persistência de currículos e análises no Postgres.
 - Isolamento de dados por usuário com Row Level Security.
 - Retry progressivo e fallback de modelo durante indisponibilidades da IA.
-- Modo demonstrativo sem Supabase configurado.
 - Estados de carregamento e erros acionáveis.
 
 ### Roadmap
@@ -89,7 +89,7 @@ flowchart LR
 - **Autorização em profundidade:** as funções validam explicitamente o access token e o banco aplica RLS.
 - **IA com saída estruturada:** o Gemini retorna JSON para reduzir ambiguidade.
 - **Resiliência:** erros `429`, `500`, `502`, `503` e `504` recebem retry exponencial e fallback.
-- **Progressive enhancement:** sem backend configurado, a interface continua navegável em modo demonstrativo.
+- **Falha segura:** sem backend configurado, o fluxo funcional permanece bloqueado.
 
 ## Stack
 
@@ -162,7 +162,8 @@ Cadastre os secrets — nunca no `.env` do frontend:
 npx supabase secrets set \
   GEMINI_API_KEY=SUA_CHAVE \
   GEMINI_MODEL=gemini-3.6-flash \
-  GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
+  GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite \
+  MVP_ALLOWED_EMAILS=voce@email.com,outro-convidado@email.com
 ```
 
 Publique as funções:
@@ -172,7 +173,9 @@ npx supabase functions deploy analyze-resume --no-verify-jwt
 npx supabase functions deploy optimize-resume --no-verify-jwt
 ```
 
-O gateway não valida o JWT porque as funções fazem a validação explícita com `auth.getUser(accessToken)`. Requisições sem sessão válida continuam sendo rejeitadas.
+O gateway não valida o JWT porque as funções fazem a validação explícita com `auth.getUser(accessToken)`. Requisições sem sessão válida continuam sendo rejeitadas. A variável `MVP_ALLOWED_EMAILS` é obrigatória e aceita e-mails separados por vírgula; se estiver ausente ou vazia, as funções falham de forma segura sem chamar o Gemini.
+
+Enquanto o MVP estiver fechado, desative também **Allow new users to sign up** em **Authentication > Sign In / Providers > Email** no painel do Supabase. A lista no backend é a barreira que protege o custo da API; desabilitar novos cadastros evita contas desnecessárias.
 
 ## Modelo de dados
 
@@ -185,7 +188,7 @@ As duas tabelas possuem RLS. Um usuário autenticado acessa somente registros cu
 
 - `.env` e `.env.local` são ignorados pelo Git.
 - A chave Gemini nunca é enviada ao navegador.
-- Toda operação de IA exige uma sessão válida.
+- Toda operação de IA exige uma sessão válida e um e-mail presente na lista de convidados do backend.
 - Currículos são processados no backend.
 - Uploads aceitam somente DOCX de até 5 MB.
 - Descrições de vaga possuem limite de 8.000 caracteres.
@@ -216,7 +219,7 @@ O Playwright gera screenshots em `artifacts/linkedin`. As capturas usam `prefers
 
 ### Checklist manual
 
-- Cadastro, confirmação de e-mail, login e logout.
+- Login e logout de uma conta convidada; rejeição de uma conta fora da lista.
 - Upload válido, formato incorreto e arquivo acima de 5 MB.
 - Vaga vazia, curta e próxima ao limite.
 - Análise completa com persistência.
