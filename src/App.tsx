@@ -9,6 +9,7 @@ import { AuthDialog } from './components/AuthDialog'
 import { LandingPage } from './components/LandingPage'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { analyzeResume, optimizeResume, type AnalysisResult, type OptimizedResult } from './lib/api'
+import { downloadResumeDocx } from './lib/resumeDocx'
 
 type Step = 'landing' | 'input' | 'loading' | 'result' | 'optimized'
 
@@ -17,13 +18,6 @@ const jobExample = `Product Designer Sênior
 Buscamos uma pessoa com experiência em produtos digitais B2B, domínio de Figma, Design Systems e pesquisa com usuários. Será responsável por conduzir discovery, criar protótipos de alta fidelidade e colaborar com times de produto e engenharia.
 
 Requisitos: 5+ anos de experiência, inglês avançado, métricas de produto e vivência com metodologias ágeis.`
-
-const keywords = [
-  { name: 'Figma', found: true }, { name: 'Design Systems', found: true },
-  { name: 'Discovery', found: true }, { name: 'Produtos B2B', found: true },
-  { name: 'Pesquisa com usuários', found: true }, { name: 'Métricas de produto', found: false },
-  { name: 'Inglês avançado', found: false }, { name: 'Metodologias ágeis', found: true },
-]
 
 function Logo() {
   return <div className="logo"><span><Sparkle weight="fill" /></span>matchly</div>
@@ -96,20 +90,15 @@ function InputScreen({ onAnalyze, error }: { onAnalyze: (file: File, text: strin
       <button className="primary big" disabled={!canGo} onClick={() => file && onAnalyze(file, text)}><MagicWand weight="fill" /> Analisar compatibilidade <ArrowRight weight="bold" /></button>
       <p className="privacy"><ShieldCheck weight="fill" /> Seus arquivos são processados com segurança e nunca compartilhados.</p>
     </main>
-    <div className="trust-row"><span><CheckCircle weight="fill" /> Sem informações inventadas</span><span><CheckCircle weight="fill" /> Otimizado para ATS</span><span><CheckCircle weight="fill" /> Resultado em segundos</span></div>
+    <div className="trust-row"><span><CheckCircle weight="fill" /> Sem informações inventadas</span><span><CheckCircle weight="fill" /> Texto simples e legível</span><span><CheckCircle weight="fill" /> Resultado em segundos</span></div>
   </>
 }
 
 function LoadingScreen() {
-  return <main className="loading-card">
+  return <main className="loading-card" role="status" aria-live="polite">
     <div className="orbit"><div className="orbit-ring" /><Sparkle weight="fill" /></div>
-    <h1>Encontrando o seu melhor match...</h1>
-    <p>Nossa IA está cruzando cada detalhe do seu currículo<br />com o que a vaga realmente procura.</p>
-    <div className="loading-items">
-      <span className="done"><Check weight="bold" /> Lendo seu currículo</span>
-      <span className="current"><span className="mini-loader" /> Identificando requisitos da vaga</span>
-      <span><span className="empty-dot" /> Calculando sua aderência</span>
-    </div>
+    <h1>Analisando seu currículo...</h1>
+    <p>Estamos comparando o seu currículo com os requisitos da vaga.<br />Isso costuma levar de 10 a 30 segundos.</p>
   </main>
 }
 
@@ -117,17 +106,16 @@ function ScoreRing({ score }: { score: number }) {
   return <div className="score-ring" style={{'--score': String(score)} as React.CSSProperties}><div><strong>{score}</strong><span>/100</span></div></div>
 }
 
-function ResultScreen({ analysis, onOptimize, busy, error }: { analysis: AnalysisResult | null; onOptimize: () => void; busy: boolean; error: string }) {
-  const score = analysis?.match_score ?? 78
-  const strengths = analysis?.strengths?.length ? analysis.strengths : ['Experiência sólida com produtos digitais B2B', 'Domínio de Figma e prototipação avançada', 'Criação e evolução de Design Systems', 'Vivência com discovery e pesquisa']
-  const gaps = analysis?.gaps?.length ? analysis.gaps : [{ area: 'Métricas de produto', descricao: 'A vaga valoriza decisões orientadas a dados. Seu currículo não deixa essa experiência clara.' }, { area: 'Inglês avançado', descricao: 'Requisito explícito que não foi identificado no documento.' }]
-  const dynamicKeywords = analysis ? [...strengths.slice(0, 5).map(name => ({ name, found: true })), ...analysis.missing_keywords.map(name => ({ name, found: false }))] : keywords
+function ResultScreen({ analysis, onOptimize, onReset, busy, error }: { analysis: AnalysisResult; onOptimize: () => void; onReset: () => void; busy: boolean; error: string }) {
+  const score = analysis.match_score
+  const strengths = analysis.strengths
+  const gaps = analysis.gaps
+  const dynamicKeywords = [...strengths.slice(0, 5).map(name => ({ name, found: true })), ...analysis.missing_keywords.map(name => ({ name, found: false }))]
   return <main className="result-wrap">
-    <div className="result-title"><div><span className="eyebrow"><Sparkle weight="fill" /> Análise concluída</span><h1>Você está no caminho certo.</h1><p>Seu perfil tem boa aderência. Alguns ajustes podem fazer você se destacar.</p></div><button className="outline"><FileArrowUp /> Trocar arquivos</button></div>
+    <div className="result-title"><div><span className="eyebrow"><Sparkle weight="fill" /> Análise concluída</span><h1>{score >= 75 ? 'Você está no caminho certo.' : score >= 50 ? 'Há um bom caminho, com ajustes.' : 'Vale reforçar alguns pontos.'}</h1><p>Veja o que já combina com a vaga e o que ainda não aparece no seu currículo.</p></div><button className="outline" onClick={onReset}><FileArrowUp /> Trocar arquivos</button></div>
     <section className="score-card">
       <ScoreRing score={score} />
-      <div className="score-copy"><span>ADERÊNCIA À VAGA</span><h2>{score >= 75 ? 'Boa compatibilidade' : score >= 50 ? 'Compatibilidade moderada' : 'Aderência inicial'}</h2><p>Seu currículo foi comparado aos requisitos explícitos desta oportunidade.</p><div className="mini-stats"><span><strong>{strengths.length}</strong> pontos fortes</span><span><strong>{gaps.length}</strong> oportunidades</span></div></div>
-      <div className="insight"><Lightning weight="fill" /><p><strong>Você está acima da média.</strong><br />Currículos com mais de 70% de aderência têm maior chance de chegar à entrevista.</p></div>
+      <div className="score-copy"><span>ADERÊNCIA À VAGA</span><h2>{score >= 75 ? 'Boa compatibilidade' : score >= 50 ? 'Compatibilidade moderada' : 'Aderência inicial'}</h2><p>Estimativa feita pela IA a partir dos requisitos que aparecem no texto da vaga. Use como orientação, não como garantia.</p><div className="mini-stats"><span><strong>{strengths.length}</strong> pontos fortes</span><span><strong>{gaps.length}</strong> oportunidades</span></div></div>
     </section>
     <div className="result-grid">
       <section className="panel strengths"><div className="panel-head"><span><CheckCircle weight="fill" /></span><div><h3>Seus pontos fortes</h3><p>O que já conversa bem com a vaga</p></div></div>
@@ -143,14 +131,21 @@ function ResultScreen({ analysis, onOptimize, busy, error }: { analysis: Analysi
   </main>
 }
 
-function OptimizedScreen({ optimized }: { optimized: OptimizedResult | null }) {
+function OptimizedScreen({ optimized, onBack }: { optimized: OptimizedResult; onBack: () => void }) {
+  const [downloadError, setDownloadError] = useState('')
+  const download = async () => {
+    setDownloadError('')
+    try { await downloadResumeDocx(optimized.optimized_resume) }
+    catch { setDownloadError('Não foi possível gerar o arquivo. Tente novamente.') }
+  }
   return <main className="optimized-wrap">
-    <div className="success-hero"><span><Check weight="bold" /></span><div><div className="eyebrow">Currículo otimizado</div><h1>Pronto para a próxima etapa.</h1><p>Seu conteúdo foi reorganizado para destacar o que mais importa nesta vaga.</p></div></div>
+    <div className="success-hero"><span><Check weight="bold" /></span><div><div className="eyebrow">Currículo otimizado</div><h1>Sua versão para esta vaga.</h1><p>Revise o texto antes de enviar: a IA só reorganiza e reescreve o que já estava no seu currículo.</p></div></div>
     <div className="document-layout">
-      <aside className="changes panel"><h3><TrendUp weight="fill" /> O que melhoramos</h3><ul>{(optimized?.changes_summary ?? ['Resumo mais direcionado', 'Experiências reordenadas', 'Termos da vaga incorporados']).map(item => <li key={item}><CheckCircle weight="fill" /><span><strong>{item}</strong></span></li>)}</ul><div className="honesty"><ShieldCheck weight="fill" /><p><strong>Compromisso com a verdade</strong><br />Nenhuma experiência ou habilidade foi inventada.</p></div></aside>
+      <aside className="changes panel"><h3><TrendUp weight="fill" /> O que mudou</h3><ul>{optimized.changes_summary.map(item => <li key={item}><CheckCircle weight="fill" /><span><strong>{item}</strong></span></li>)}</ul><div className="honesty"><ShieldCheck weight="fill" /><p><strong>Compromisso com a verdade</strong><br />Verificamos que nenhum número ou data novo foi adicionado. Confira o restante antes de enviar.</p></div><button className="outline" onClick={onBack}>Voltar à análise</button></aside>
       <section className="resume-preview">
-        <div className="paper-head"><span>VERSÃO OTIMIZADA</span><button className="outline"><FileArrowUp /> Baixar DOCX</button></div>
-        {optimized ? <article className="paper optimized-text">{optimized.optimized_resume}</article> : <article className="paper"><h2>Marina Oliveira</h2><p className="contact">Product Designer Sênior · São Paulo, SP · marina@email.com</p><h4>RESUMO</h4><p>Product Designer com experiência em produtos digitais B2B, conduzindo processos de discovery, pesquisa com usuários e prototipação de alta fidelidade. Atuação colaborativa com times de produto e engenharia, com domínio de Figma e construção de Design Systems escaláveis.</p><h4>EXPERIÊNCIA PROFISSIONAL</h4><div className="job"><strong>Product Designer · Lumina Tech</strong><span>03/2021 — Atual</span></div><ul><li>Condução de discovery e pesquisa com usuários para produtos digitais B2B.</li><li>Criação de fluxos, wireframes e protótipos de alta fidelidade no Figma.</li><li>Evolução do Design System em parceria com engenharia e produto.</li></ul><h4>HABILIDADES</h4><p>Figma · Design Systems · Discovery · Pesquisa com usuários · Prototipação · Produtos B2B · Metodologias ágeis</p></article>}
+        <div className="paper-head"><span>VERSÃO OTIMIZADA</span><button className="outline" onClick={download}><FileArrowUp /> Baixar DOCX</button></div>
+        {downloadError && <div className="flow-error" role="alert">{downloadError}</div>}
+        <article className="paper optimized-text">{optimized.optimized_resume}</article>
       </section>
     </div>
   </main>
@@ -187,20 +182,21 @@ export default function App() {
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível concluir a análise.'); setStep('input') }
   }
   const optimize = async () => {
-    if (!analysis) { setStep('optimized'); return }
+    if (!analysis) return
     setBusy(true); setError('')
     try { setOptimized(await optimizeResume(analysis.analysis_id)); setStep('optimized') }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível otimizar o currículo.') }
     finally { setBusy(false) }
   }
+  const reset = () => { setAnalysis(null); setOptimized(null); setError(''); setStep('input') }
   const progress = step === 'input' || step === 'loading' ? 1 : step === 'result' ? 2 : 3
   return <div className="app"><Header user={user} onAuth={() => setAuthOpen(true)} onStart={start} landing={step === 'landing'} />
     {step !== 'landing' && <Progress active={progress} />}
     {step === 'landing' && <LandingPage onStart={start} />}
     {step === 'input' && <InputScreen onAnalyze={analyze} error={error} />}
     {step === 'loading' && <LoadingScreen />}
-    {step === 'result' && <ResultScreen analysis={analysis} onOptimize={optimize} busy={busy} error={error} />}
-    {step === 'optimized' && <OptimizedScreen optimized={optimized} />}
+    {step === 'result' && analysis && <ResultScreen analysis={analysis} onOptimize={optimize} onReset={reset} busy={busy} error={error} />}
+    {step === 'optimized' && optimized && <OptimizedScreen optimized={optimized} onBack={() => setStep('result')} />}
     <footer><Logo /><span>Currículos mais relevantes. Carreiras mais próximas.</span><small>© 2026 Matchly</small></footer>
     <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} onAuthenticated={() => { setAuthOpen(false); setStep('input') }} />
   </div>
