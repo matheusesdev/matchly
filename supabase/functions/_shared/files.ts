@@ -10,3 +10,8 @@ export function detectResumeKind(filename: string, bytes: Uint8Array): ResumeFil
   if (name.endsWith('.docx') && startsWith([0x50, 0x4b, 0x03, 0x04])) return 'docx' // PK\x03\x04 (zip)
   return null
 }
+
+/** Normaliza o texto extraído de PDF: tira espaços no fim das linhas e colapsa linhas em branco repetidas. */
+export function tidyExtractedText(text: string): string {
+  return text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+}

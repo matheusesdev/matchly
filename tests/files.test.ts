@@ -19,3 +19,10 @@ describe('detectResumeKind', () => {
     expect(detectResumeKind('cv.doc', zip)).toBeNull()
   })
 })
+
+import { tidyExtractedText } from '../supabase/functions/_shared/files'
+describe('tidyExtractedText', () => {
+  it('remove espaços no fim das linhas e colapsa linhas em branco', () => {
+    expect(tidyExtractedText('A  \n\n\n\nB \t\nC\n')).toBe('A\n\nB\nC')
+  })
+})

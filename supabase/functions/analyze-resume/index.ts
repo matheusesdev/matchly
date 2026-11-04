@@ -8,7 +8,7 @@ import { callGemini } from '../_shared/gemini.ts'
 import { isMultipartRequest, json, requestId } from '../_shared/http.ts'
 import { parseAnalysis } from '../_shared/ai-output.ts'
 import { ANALYSIS_SCHEMA, buildAnalysisPrompt } from '../_shared/prompts.ts'
-import { MAX_RESUME_BYTES, detectResumeKind } from '../_shared/files.ts'
+import { MAX_RESUME_BYTES, detectResumeKind, tidyExtractedText } from '../_shared/files.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
 
 const MAX_RESUME_CHARS = 20_000
@@ -30,12 +30,7 @@ Deno.serve(async (request) => {
     let resumeText: string
     try {
       resumeText = kind === 'pdf'
-        ? ((await extractText(await getDocumentProxy(bytes), { mergePages: true })).text as string).replace(/[ 	]+
-/g, '
-').replace(/
-{3,}/g, '
-
-').trim()
+        ? tidyExtractedText((await extractText(await getDocumentProxy(bytes), { mergePages: true })).text as string)
         : (await mammoth.extractRawText({ buffer: Buffer.from(bytes) })).value.trim()
     } catch (_error) {
       return json(request, { error: 'Não conseguimos ler o arquivo. Ele pode estar protegido ou corrompido.' }, 422, id)
