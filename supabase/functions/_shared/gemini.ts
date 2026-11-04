@@ -1,9 +1,11 @@
+import { SYSTEM_INSTRUCTION } from './prompts.ts'
+
 const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash'
 const fallbackModel = Deno.env.get('GEMINI_FALLBACK_MODEL') ?? 'gemini-3.5-flash-lite'
 const timeoutMs = Number(Deno.env.get('GEMINI_TIMEOUT_MS') ?? 30_000)
 const retryableStatuses = new Set([429, 500, 502, 503, 504])
 
-export async function callGemini(prompt: string) {
+export async function callGemini(prompt: string, schema: unknown) {
   const apiKey = Deno.env.get('GEMINI_API_KEY')
   if (!apiKey) throw new Error('Gemini indisponível')
   let lastError = 'Gemini indisponível'
@@ -14,7 +16,12 @@ export async function callGemini(prompt: string) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent`, {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } }), signal: controller.signal,
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.2, maxOutputTokens: 8192 },
+          }),
+          signal: controller.signal,
         })
         if (response.ok) {
           const payload = await response.json()

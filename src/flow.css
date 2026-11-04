@@ -23,3 +23,5 @@
 @media (max-width: 800px) {
   .header-cta { display: none; }
 }
+.demo-banner{display:flex;align-items:center;gap:10px;margin:0 0 18px;padding:12px 16px;border-radius:12px;background:#fff7e0;color:#6b4e00;font-size:14px;font-weight:600}
+.ba-note{display:block;margin-top:6px;color:var(--muted);font-size:12px}
