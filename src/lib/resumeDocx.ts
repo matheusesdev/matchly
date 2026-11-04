@@ -1,4 +1,5 @@
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx'
+import { saveBlob } from './download'
 
 export type ResumeBlock =
   | { type: 'name'; text: string }
@@ -50,9 +51,5 @@ export async function buildResumeDocx(text: string): Promise<Blob> {
 }
 
 export async function downloadResumeDocx(text: string, filename = 'curriculo-otimizado.docx') {
-  const url = URL.createObjectURL(await buildResumeDocx(text))
-  const link = document.createElement('a')
-  link.href = url; link.download = filename
-  document.body.appendChild(link); link.click(); link.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  saveBlob(await buildResumeDocx(text), filename)
 }

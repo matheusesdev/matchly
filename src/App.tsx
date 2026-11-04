@@ -9,7 +9,6 @@ import { AuthDialog } from './components/AuthDialog'
 import { LandingPage } from './components/LandingPage'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { analyzeResume, optimizeResume, type AnalysisResult, type OptimizedResult } from './lib/api'
-import { downloadResumeDocx } from './lib/resumeDocx'
 
 type Step = 'landing' | 'input' | 'loading' | 'result' | 'optimized'
 
@@ -50,7 +49,13 @@ function Progress({ active }: { active: number }) {
 function UploadCard({ file, onFile }: { file: File | null, onFile: (file: File) => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
-  const handle = (candidate?: File) => candidate && onFile(candidate)
+  const [fileError, setFileError] = useState('')
+  const handle = (candidate?: File) => {
+    if (!candidate) return
+    if (!/.(docx|pdf)$/i.test(candidate.name)) return setFileError('Formato não suportado. Envie um DOCX ou PDF.')
+    if (candidate.size > 5 * 1024 * 1024) return setFileError('O arquivo tem mais de 5 MB.')
+    setFileError(''); onFile(candidate)
+  }
   return <section className="field-block">
     <div className="field-heading"><div className="field-icon mint"><FileDoc weight="duotone" /></div><div><h2>Seu currículo</h2><p>Usaremos apenas o conteúdo para a análise</p></div></div>
     <button type="button" className={`dropzone ${dragging ? 'dragging' : ''} ${file ? 'has-file' : ''}`}
@@ -58,10 +63,11 @@ function UploadCard({ file, onFile }: { file: File | null, onFile: (file: File) 
       onDragOver={e => { e.preventDefault(); setDragging(true) }}
       onDragLeave={() => setDragging(false)}
       onDrop={e => { e.preventDefault(); setDragging(false); handle(e.dataTransfer.files[0]) }}>
-      <input ref={inputRef} type="file" accept=".docx" hidden onChange={e => handle(e.target.files?.[0])} />
+      <input ref={inputRef} type="file" accept=".docx,.pdf" hidden onChange={e => handle(e.target.files?.[0])} />
       {file ? <><span className="upload-icon success"><CheckCircle weight="fill" /></span><strong>{file.name}</strong><small>{(file.size / 1024 / 1024).toFixed(1)} MB · pronto para analisar</small></>
-        : <><span className="upload-icon"><UploadSimple weight="bold" /></span><strong>Arraste seu currículo aqui</strong><small>ou <u>escolha um arquivo</u> do computador</small><em>DOCX · máximo 5 MB</em></>}
+        : <><span className="upload-icon"><UploadSimple weight="bold" /></span><strong>Arraste seu currículo aqui</strong><small>ou <u>escolha um arquivo</u> do computador</small><em>DOCX ou PDF · máximo 5 MB</em></>}
     </button>
+    {fileError && <div className="flow-error" role="alert">{fileError}</div>}
   </section>
 }
 
@@ -133,17 +139,19 @@ function ResultScreen({ analysis, onOptimize, onReset, busy, error }: { analysis
 
 function OptimizedScreen({ optimized, onBack }: { optimized: OptimizedResult; onBack: () => void }) {
   const [downloadError, setDownloadError] = useState('')
-  const download = async () => {
+  const download = async (format: 'docx' | 'pdf') => {
     setDownloadError('')
-    try { await downloadResumeDocx(optimized.optimized_resume) }
-    catch { setDownloadError('Não foi possível gerar o arquivo. Tente novamente.') }
+    try {
+      if (format === 'pdf') await (await import('./lib/resumePdf')).downloadResumePdf(optimized.optimized_resume)
+      else await (await import('./lib/resumeDocx')).downloadResumeDocx(optimized.optimized_resume)
+    } catch { setDownloadError('Não foi possível gerar o arquivo. Tente novamente.') }
   }
   return <main className="optimized-wrap">
     <div className="success-hero"><span><Check weight="bold" /></span><div><div className="eyebrow">Currículo otimizado</div><h1>Sua versão para esta vaga.</h1><p>Revise o texto antes de enviar: a IA só reorganiza e reescreve o que já estava no seu currículo.</p></div></div>
     <div className="document-layout">
       <aside className="changes panel"><h3><TrendUp weight="fill" /> O que mudou</h3><ul>{optimized.changes_summary.map(item => <li key={item}><CheckCircle weight="fill" /><span><strong>{item}</strong></span></li>)}</ul><div className="honesty"><ShieldCheck weight="fill" /><p><strong>Compromisso com a verdade</strong><br />Verificamos que nenhum número ou data novo foi adicionado. Confira o restante antes de enviar.</p></div><button className="outline" onClick={onBack}>Voltar à análise</button></aside>
       <section className="resume-preview">
-        <div className="paper-head"><span>VERSÃO OTIMIZADA</span><button className="outline" onClick={download}><FileArrowUp /> Baixar DOCX</button></div>
+        <div className="paper-head"><span>VERSÃO OTIMIZADA</span><div className="download-actions"><button className="outline" onClick={() => download('pdf')}><FileArrowUp /> Baixar PDF</button><button className="outline" onClick={() => download('docx')}><FileArrowUp /> Baixar DOCX</button></div></div>
         {downloadError && <div className="flow-error" role="alert">{downloadError}</div>}
         <article className="paper optimized-text">{optimized.optimized_resume}</article>
       </section>
