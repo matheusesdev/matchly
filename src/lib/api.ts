@@ -1,5 +1,6 @@
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from './supabase'
+import type { EvidenceItem } from '../../supabase/functions/_shared/evidence'
 
 export type Gap = { area: string; descricao: string }
 export type AnalysisResult = {
@@ -13,6 +14,7 @@ export type AnalysisResult = {
 export type OptimizedResult = {
   optimized_resume: string
   changes_summary: string[]
+  evidence?: EvidenceItem[]
 }
 
 async function functionError(error: unknown, fallback: string) {

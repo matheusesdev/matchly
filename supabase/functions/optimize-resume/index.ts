@@ -2,8 +2,9 @@ import { authorizeMvpUser } from '../_shared/auth.ts'
 import { corsHeaders, isAllowedOrigin } from '../_shared/cors.ts'
 import { callGemini } from '../_shared/gemini.ts'
 import { isJsonRequest, json, requestId } from '../_shared/http.ts'
-import { findUnsupportedNumbers, parseOptimization } from '../_shared/ai-output.ts'
-import { OPTIMIZATION_SCHEMA, buildOptimizationPrompt } from '../_shared/prompts.ts'
+import { findUnsupportedNumbers, parseOptimization, type Optimization } from '../_shared/ai-output.ts'
+import { MIN_VERIFIED_RATIO, isAcceptable, pickBetter, verifyEvidence, type Attempt } from '../_shared/evidence.ts'
+import { OPTIMIZATION_SCHEMA, buildOptimizationPrompt, type OptimizationFeedback } from '../_shared/prompts.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
 
 Deno.serve(async (request) => {
@@ -21,19 +22,23 @@ Deno.serve(async (request) => {
     const original: string = resume?.raw_text ?? ''
     if (!(await consumeQuota(client, userId, 'optimize', dailyLimit('optimize', (n) => Deno.env.get(n))))) return json(request, { error: 'Você atingiu o limite diário de otimizações. Tente novamente amanhã.' }, 429, id)
 
-    // Guarda anti-invenção: números (datas, métricas) ausentes do original reprovam a saída; uma nova tentativa é feita com feedback.
-    let optimized = parseOptimization(await callGemini(buildOptimizationPrompt(data.job_text, original), OPTIMIZATION_SCHEMA))
-    let invented = findUnsupportedNumbers(original, optimized.optimized_resume)
-    if (invented.length) {
-      optimized = parseOptimization(await callGemini(buildOptimizationPrompt(data.job_text, original, invented), OPTIMIZATION_SCHEMA))
-      invented = findUnsupportedNumbers(original, optimized.optimized_resume)
+    // Até 2 tentativas: reprova números inventados e exige que a maioria das afirmações cite um trecho real do original.
+    const generate = async (feedback?: OptimizationFeedback): Promise<Attempt<Optimization>> => {
+      const value = parseOptimization(await callGemini(buildOptimizationPrompt(data.job_text, original, feedback), OPTIMIZATION_SCHEMA))
+      return { value, invented: findUnsupportedNumbers(original, value.optimized_resume), fidelity: verifyEvidence(original, value.optimized_resume, value.evidence) }
     }
-    if (invented.length) {
-      console.error(JSON.stringify({ request_id: id, error: 'unsupported_numbers', count: invented.length }))
+    let best = await generate()
+    if (!isAcceptable(best)) {
+      const second = await generate({ invented: best.invented, lowEvidence: best.fidelity.ratio < MIN_VERIFIED_RATIO })
+      best = pickBetter(best, second)
+    }
+    if (best.invented.length) {
+      console.error(JSON.stringify({ request_id: id, error: 'unsupported_numbers', count: best.invented.length }))
       return json(request, { error: 'Não conseguimos gerar uma versão fiel ao seu currículo desta vez. Tente novamente.' }, 502, id)
     }
+    const optimized = { optimized_resume: best.value.optimized_resume, changes_summary: best.value.changes_summary, evidence: best.fidelity.items }
 
-    const { error: updateError } = await client.from('analyses').update({ optimized_resume_text: optimized.optimized_resume, changes_summary: optimized.changes_summary }).eq('id', data.id).eq('user_id', userId); if (updateError) throw updateError
+    const { error: updateError } = await client.from('analyses').update({ optimized_resume_text: optimized.optimized_resume, changes_summary: optimized.changes_summary, evidence: optimized.evidence }).eq('id', data.id).eq('user_id', userId); if (updateError) throw updateError
     return json(request, optimized, 200, id)
   } catch (error) { console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown' })); return json(request, { error: 'Não foi possível otimizar o currículo.' }, 500, id) }
 })

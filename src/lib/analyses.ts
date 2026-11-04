@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import type { Gap } from './api'
+import type { EvidenceItem } from '../../supabase/functions/_shared/evidence'
 
 export type SavedAnalysis = {
   analysis_id: string
@@ -10,8 +11,10 @@ export type SavedAnalysis = {
   job_text: string
   optimized_resume_text: string | null
   changes_summary: string[]
+  evidence: EvidenceItem[]
   created_at: string
   filename: string
+  resume_text: string
 }
 
 export type AnalysisSummary = {
@@ -23,8 +26,9 @@ export type AnalysisSummary = {
   has_optimized: boolean
 }
 
-type ResumeRef = { original_filename: string } | { original_filename: string }[] | null
-const filenameOf = (ref: ResumeRef) => (Array.isArray(ref) ? ref[0] : ref)?.original_filename ?? 'Currículo'
+type ResumeRef = { original_filename: string; raw_text?: string } | { original_filename: string; raw_text?: string }[] | null
+const resumeOf = (ref: ResumeRef) => (Array.isArray(ref) ? ref[0] : ref)
+const filenameOf = (ref: ResumeRef) => resumeOf(ref)?.original_filename ?? 'Currículo'
 
 /** Usa a primeira linha não vazia da vaga como título (ex.: "Product Designer Sênior"). */
 export function jobTitle(jobText: string, max = 80): string {
@@ -39,14 +43,15 @@ function client() {
 
 export async function fetchAnalysis(id: string): Promise<SavedAnalysis | null> {
   const { data, error } = await client().from('analyses')
-    .select('id, match_score, missing_keywords, gaps, strengths, job_text, optimized_resume_text, changes_summary, created_at, resumes(original_filename)')
+    .select('id, match_score, missing_keywords, gaps, strengths, job_text, optimized_resume_text, changes_summary, evidence, created_at, resumes(original_filename, raw_text)')
     .eq('id', id).maybeSingle()
   if (error) throw new Error('Não foi possível carregar a análise.')
   if (!data) return null
   return {
     analysis_id: data.id, match_score: data.match_score ?? 0, missing_keywords: data.missing_keywords ?? [], gaps: data.gaps ?? [],
     strengths: data.strengths ?? [], job_text: data.job_text, optimized_resume_text: data.optimized_resume_text,
-    changes_summary: data.changes_summary ?? [], created_at: data.created_at, filename: filenameOf(data.resumes as ResumeRef),
+    changes_summary: data.changes_summary ?? [], evidence: data.evidence ?? [], created_at: data.created_at,
+    filename: filenameOf(data.resumes as ResumeRef), resume_text: resumeOf(data.resumes as ResumeRef)?.raw_text ?? '',
   }
 }
 

@@ -10,6 +10,7 @@ import { AuthDialog } from './components/AuthDialog'
 import { LandingPage } from './components/LandingPage'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { HistoryPage } from './components/HistoryPage'
+import { OptimizedScreen } from './components/OptimizedScreen'
 import { analyzeResume, optimizeResume, type AnalysisResult, type OptimizedResult } from './lib/api'
 import { fetchAnalysis, type SavedAnalysis } from './lib/analyses'
 
@@ -140,28 +141,6 @@ function ResultScreen({ analysis, hasOptimized, onOptimize, onReset, busy, error
   </main>
 }
 
-function OptimizedScreen({ optimized, onBack }: { optimized: OptimizedResult; onBack: () => void }) {
-  const [downloadError, setDownloadError] = useState('')
-  const download = async (format: 'docx' | 'pdf') => {
-    setDownloadError('')
-    try {
-      if (format === 'pdf') await (await import('./lib/resumePdf')).downloadResumePdf(optimized.optimized_resume)
-      else await (await import('./lib/resumeDocx')).downloadResumeDocx(optimized.optimized_resume)
-    } catch { setDownloadError('Não foi possível gerar o arquivo. Tente novamente.') }
-  }
-  return <main className="optimized-wrap">
-    <div className="success-hero"><span><Check weight="bold" /></span><div><div className="eyebrow">Currículo otimizado</div><h1>Sua versão para esta vaga.</h1><p>Revise o texto antes de enviar: a IA só reorganiza e reescreve o que já estava no seu currículo.</p></div></div>
-    <div className="document-layout">
-      <aside className="changes panel"><h3><TrendUp weight="fill" /> O que mudou</h3><ul>{optimized.changes_summary.map(item => <li key={item}><CheckCircle weight="fill" /><span><strong>{item}</strong></span></li>)}</ul><div className="honesty"><ShieldCheck weight="fill" /><p><strong>Compromisso com a verdade</strong><br />Verificamos que nenhum número ou data novo foi adicionado. Confira o restante antes de enviar.</p></div><button className="outline" onClick={onBack}>Voltar à análise</button></aside>
-      <section className="resume-preview">
-        <div className="paper-head"><span>VERSÃO OTIMIZADA</span><div className="download-actions"><button className="outline" onClick={() => download('pdf')}><FileArrowUp /> Baixar PDF</button><button className="outline" onClick={() => download('docx')}><FileArrowUp /> Baixar DOCX</button></div></div>
-        {downloadError && <div className="flow-error" role="alert">{downloadError}</div>}
-        <article className="paper optimized-text">{optimized.optimized_resume}</article>
-      </section>
-    </div>
-  </main>
-}
-
 function PageStatus({ text }: { text: string }) {
   return <main className="loading-card" role="status" aria-live="polite"><p>{text}</p></main>
 }
@@ -227,8 +206,8 @@ function OptimizedPage() {
   if (status === 'error') return <PageStatus text={error} />
   if (status === 'missing' || !data) return <NotFoundAnalysis />
   if (!data.optimized_resume_text) return <Navigate to={`/analises/${data.analysis_id}`} replace />
-  const optimized: OptimizedResult = { optimized_resume: data.optimized_resume_text, changes_summary: data.changes_summary }
-  return <OptimizedScreen optimized={optimized} onBack={() => navigate(`/analises/${data.analysis_id}`)} />
+  const optimized: OptimizedResult = { optimized_resume: data.optimized_resume_text, changes_summary: data.changes_summary, evidence: data.evidence }
+  return <OptimizedScreen optimized={optimized} original={data.resume_text} onBack={() => navigate(`/analises/${data.analysis_id}`)} />
 }
 
 function RequireAuth({ user, ready, children }: { user: User | null; ready: boolean; children: React.ReactNode }) {
