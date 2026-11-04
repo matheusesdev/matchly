@@ -26,3 +26,12 @@ describe('tidyExtractedText', () => {
     expect(tidyExtractedText('A  \n\n\n\nB \t\nC\n')).toBe('A\n\nB\nC')
   })
 })
+
+import { sha256Hex } from '../supabase/functions/_shared/files'
+describe('sha256Hex', () => {
+  it('é estável e ignora diferenças de espaçamento', async () => {
+    expect(await sha256Hex('Ana  Silva\n Analista')).toBe(await sha256Hex('Ana Silva Analista'))
+    expect(await sha256Hex('a')).not.toBe(await sha256Hex('b'))
+    expect(await sha256Hex('a')).toHaveLength(64)
+  })
+})

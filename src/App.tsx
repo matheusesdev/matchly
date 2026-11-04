@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowRight, Briefcase, Check, CheckCircle, FileArrowUp, FileDoc,
   Lightning, ListChecks, LockKey, MagicWand, ShieldCheck, Sparkle,
@@ -8,9 +9,9 @@ import {
 import { AuthDialog } from './components/AuthDialog'
 import { LandingPage } from './components/LandingPage'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
+import { HistoryPage } from './components/HistoryPage'
 import { analyzeResume, optimizeResume, type AnalysisResult, type OptimizedResult } from './lib/api'
-
-type Step = 'landing' | 'input' | 'loading' | 'result' | 'optimized'
+import { fetchAnalysis, type SavedAnalysis } from './lib/analyses'
 
 const jobExample = `Product Designer Sênior
 
@@ -23,10 +24,12 @@ function Logo() {
 }
 
 function Header({ user, onAuth, onStart, landing }: { user: User | null; onAuth: () => void; onStart: () => void; landing: boolean }) {
+  const navigate = useNavigate()
   return <header className="topbar">
     <Logo />
     <div className="header-actions">
       <div className="secure"><LockKey weight="bold" /> Seus dados ficam seguros</div>
+      {user && <button className="outline" onClick={() => navigate('/analises')}>Minhas análises</button>}
       {isSupabaseConfigured && (user
         ? <button className="account-button" onClick={() => supabase?.auth.signOut()} title="Sair"><UserCircle weight="fill" /><span>{user.email}</span></button>
         : <button className="outline" onClick={onAuth}>Entrar</button>)}
@@ -112,7 +115,7 @@ function ScoreRing({ score }: { score: number }) {
   return <div className="score-ring" style={{'--score': String(score)} as React.CSSProperties}><div><strong>{score}</strong><span>/100</span></div></div>
 }
 
-function ResultScreen({ analysis, onOptimize, onReset, busy, error }: { analysis: AnalysisResult; onOptimize: () => void; onReset: () => void; busy: boolean; error: string }) {
+function ResultScreen({ analysis, hasOptimized, onOptimize, onReset, busy, error }: { analysis: AnalysisResult; hasOptimized: boolean; onOptimize: () => void; onReset: () => void; busy: boolean; error: string }) {
   const score = analysis.match_score
   const strengths = analysis.strengths
   const gaps = analysis.gaps
@@ -133,7 +136,7 @@ function ResultScreen({ analysis, onOptimize, onReset, busy, error }: { analysis
     </div>
     <section className="keywords panel"><div className="panel-head"><span><ListChecks weight="fill" /></span><div><h3>Palavras-chave da vaga</h3><p>Termos que os sistemas de triagem podem procurar</p></div></div><div className="chips">{dynamicKeywords.map(k => <span className={k.found ? 'found' : 'missing'} key={k.name}>{k.found ? <Check /> : <X />}{k.name}</span>)}</div></section>
     {error && <div className="flow-error">{error}</div>}
-    <section className="optimize-card"><div className="magic-badge"><MagicWand weight="fill" /></div><div><span>PRÓXIMO PASSO</span><h2>Transforme essa análise em um currículo mais forte</h2><p>Vamos reescrever e reorganizar seu conteúdo com foco nesta vaga — sem inventar nenhuma informação.</p></div><button className="primary" disabled={busy} onClick={onOptimize}>{busy ? 'Otimizando...' : 'Gerar currículo otimizado'} <ArrowRight weight="bold" /></button></section>
+    <section className="optimize-card"><div className="magic-badge"><MagicWand weight="fill" /></div><div><span>PRÓXIMO PASSO</span><h2>Transforme essa análise em um currículo mais forte</h2><p>Vamos reescrever e reorganizar seu conteúdo com foco nesta vaga — sem inventar nenhuma informação.</p></div><button className="primary" disabled={busy} onClick={onOptimize}>{busy ? 'Otimizando...' : hasOptimized ? 'Ver currículo otimizado' : 'Gerar currículo otimizado'} <ArrowRight weight="bold" /></button></section>
   </main>
 }
 
@@ -159,53 +162,125 @@ function OptimizedScreen({ optimized, onBack }: { optimized: OptimizedResult; on
   </main>
 }
 
-export default function App() {
-  const [step, setStep] = useState<Step>('landing')
-  const [user, setUser] = useState<User | null>(null)
-  const [authOpen, setAuthOpen] = useState(false)
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
-  const [optimized, setOptimized] = useState<OptimizedResult | null>(null)
+function PageStatus({ text }: { text: string }) {
+  return <main className="loading-card" role="status" aria-live="polite"><p>{text}</p></main>
+}
+
+function useSavedAnalysis(id: string | undefined) {
+  const [state, setState] = useState<{ status: 'loading' | 'ready' | 'missing' | 'error'; data: SavedAnalysis | null; error: string }>({ status: 'loading', data: null, error: '' })
+  useEffect(() => {
+    let active = true
+    setState({ status: 'loading', data: null, error: '' })
+    if (!id) { setState({ status: 'missing', data: null, error: '' }); return }
+    fetchAnalysis(id)
+      .then((data) => active && setState(data ? { status: 'ready', data, error: '' } : { status: 'missing', data: null, error: '' }))
+      .catch((cause) => active && setState({ status: 'error', data: null, error: cause instanceof Error ? cause.message : 'Erro ao carregar.' }))
+    return () => { active = false }
+  }, [id])
+  return state
+}
+
+function AnalyzePage() {
+  const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const analyze = async (file: File, jobText: string) => {
+    setError(''); setBusy(true)
+    try { const result = await analyzeResume(file, jobText); navigate(`/analises/${result.analysis_id}`) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível concluir a análise.'); setBusy(false) }
+  }
+  // O formulário permanece montado durante a análise para não perder arquivo e texto se houver erro.
+  return <>
+    <div hidden={busy}><InputScreen onAnalyze={analyze} error={error} /></div>
+    {busy && <LoadingScreen />}
+  </>
+}
+
+function NotFoundAnalysis() {
+  const navigate = useNavigate()
+  return <main className="loading-card"><h1>Análise não encontrada</h1><p>Ela pode ter sido excluída ou não pertence a esta conta.</p><button className="primary" onClick={() => navigate('/analises')}>Ver minhas análises</button></main>
+}
+
+function ResultPage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { status, data, error: loadError } = useSavedAnalysis(id)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  if (status === 'loading') return <PageStatus text="Carregando análise..." />
+  if (status === 'error') return <PageStatus text={loadError} />
+  if (status === 'missing' || !data) return <NotFoundAnalysis />
+  const optimize = async () => {
+    if (data.optimized_resume_text) { navigate(`/analises/${data.analysis_id}/otimizado`); return }
+    setBusy(true); setError('')
+    try { await optimizeResume(data.analysis_id); navigate(`/analises/${data.analysis_id}/otimizado`) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível otimizar o currículo.'); setBusy(false) }
+  }
+  return <ResultScreen analysis={data} hasOptimized={Boolean(data.optimized_resume_text)} onOptimize={optimize} onReset={() => navigate('/analisar')} busy={busy} error={error} />
+}
+
+function OptimizedPage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { status, data, error } = useSavedAnalysis(id)
+  if (status === 'loading') return <PageStatus text="Carregando currículo..." />
+  if (status === 'error') return <PageStatus text={error} />
+  if (status === 'missing' || !data) return <NotFoundAnalysis />
+  if (!data.optimized_resume_text) return <Navigate to={`/analises/${data.analysis_id}`} replace />
+  const optimized: OptimizedResult = { optimized_resume: data.optimized_resume_text, changes_summary: data.changes_summary }
+  return <OptimizedScreen optimized={optimized} onBack={() => navigate(`/analises/${data.analysis_id}`)} />
+}
+
+function RequireAuth({ user, ready, children }: { user: User | null; ready: boolean; children: React.ReactNode }) {
+  const location = useLocation()
+  if (!isSupabaseConfigured) return <Navigate to="/" replace />
+  if (!ready) return <PageStatus text="Carregando..." />
+  if (!user) return <Navigate to="/" replace state={{ needAuth: true, from: location.pathname }} />
+  return <>{children}</>
+}
+
+function progressFor(pathname: string) {
+  if (pathname === '/analisar') return 1
+  if (/^\/analises\/[^/]+\/otimizado$/.test(pathname)) return 3
+  if (/^\/analises\/[^/]+$/.test(pathname)) return 2
+  return 0
+}
+
+export default function App() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [user, setUser] = useState<User | null>(null)
+  const [authReady, setAuthReady] = useState(!supabase)
+  const [authOpen, setAuthOpen] = useState(false)
+  const [afterAuth, setAfterAuth] = useState('/analisar')
   useEffect(() => {
     if (!supabase) return
-    supabase.auth.getUser().then(({ data }) => setUser(data.user))
+    supabase.auth.getUser().then(({ data }) => { setUser(data.user); setAuthReady(true) })
     const { data } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null))
     return () => data.subscription.unsubscribe()
   }, [])
+  useEffect(() => { window.scrollTo(0, 0) }, [location.pathname])
+  useEffect(() => {
+    const state = location.state as { needAuth?: boolean; from?: string } | null
+    if (state?.needAuth) { setAfterAuth(state.from ?? '/analisar'); setAuthOpen(true) }
+  }, [location.state])
   const start = () => {
-    setError('')
-    if (!isSupabaseConfigured || !user) {
-      setAuthOpen(true)
-      return
-    }
-    setStep('input')
+    if (!isSupabaseConfigured || !user) { setAfterAuth('/analisar'); setAuthOpen(true); return }
+    navigate('/analisar')
   }
-  const analyze = async (file: File, jobText: string) => {
-    setError('')
-    if (isSupabaseConfigured && !user) { setAuthOpen(true); setError('Entre na sua conta para iniciar uma análise.'); return }
-    setStep('loading')
-    if (!isSupabaseConfigured) { setError('Serviço temporariamente indisponível.'); setStep('landing'); return }
-    try { setAnalysis(await analyzeResume(file, jobText)); setStep('result') }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível concluir a análise.'); setStep('input') }
-  }
-  const optimize = async () => {
-    if (!analysis) return
-    setBusy(true); setError('')
-    try { setOptimized(await optimizeResume(analysis.analysis_id)); setStep('optimized') }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível otimizar o currículo.') }
-    finally { setBusy(false) }
-  }
-  const reset = () => { setAnalysis(null); setOptimized(null); setError(''); setStep('input') }
-  const progress = step === 'input' || step === 'loading' ? 1 : step === 'result' ? 2 : 3
-  return <div className="app"><Header user={user} onAuth={() => setAuthOpen(true)} onStart={start} landing={step === 'landing'} />
-    {step !== 'landing' && <Progress active={progress} />}
-    {step === 'landing' && <LandingPage onStart={start} />}
-    {step === 'input' && <InputScreen onAnalyze={analyze} error={error} />}
-    {step === 'loading' && <LoadingScreen />}
-    {step === 'result' && analysis && <ResultScreen analysis={analysis} onOptimize={optimize} onReset={reset} busy={busy} error={error} />}
-    {step === 'optimized' && optimized && <OptimizedScreen optimized={optimized} onBack={() => setStep('result')} />}
+  const guard = (page: React.ReactNode) => <RequireAuth user={user} ready={authReady}>{page}</RequireAuth>
+  const progress = progressFor(location.pathname)
+  return <div className="app"><Header user={user} onAuth={() => { setAfterAuth(location.pathname); setAuthOpen(true) }} onStart={start} landing={location.pathname === '/'} />
+    {progress > 0 && <Progress active={progress} />}
+    <Routes>
+      <Route path="/" element={<LandingPage onStart={start} />} />
+      <Route path="/analisar" element={guard(<AnalyzePage />)} />
+      <Route path="/analises" element={guard(<HistoryPage />)} />
+      <Route path="/analises/:id" element={guard(<ResultPage />)} />
+      <Route path="/analises/:id/otimizado" element={guard(<OptimizedPage />)} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
     <footer><Logo /><span>Currículos mais relevantes. Carreiras mais próximas.</span><small>© 2026 Matchly</small></footer>
-    <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} onAuthenticated={() => { setAuthOpen(false); setStep('input') }} />
+    <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} onAuthenticated={() => { setAuthOpen(false); navigate(afterAuth, { replace: true }) }} />
   </div>
 }

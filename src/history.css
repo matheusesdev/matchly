@@ -1,0 +1,14 @@
+.history-wrap{max-width:860px;margin:0 auto;padding:40px 20px 80px}
+.history-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+.history-head h1{margin:6px 0 8px;font-size:34px;letter-spacing:-1px}.history-head p{max-width:520px;color:var(--muted);margin:0}
+.history-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.history-item{display:flex;align-items:stretch;gap:8px;background:#fff;border:1px solid #e3e6df;border-radius:16px;overflow:hidden}
+.history-open{flex:1;display:flex;align-items:center;gap:16px;padding:16px;background:none;border:0;text-align:left;cursor:pointer;color:inherit;font:inherit;min-width:0}
+.history-open:hover{background:#f7f9f4}.history-open:focus-visible,.history-delete:focus-visible{outline:3px solid var(--green);outline-offset:-3px}
+.history-score{flex:none;width:58px;height:58px;border-radius:50%;display:grid;place-content:center;text-align:center;font-weight:800;line-height:1}
+.history-score small{font-size:10px;font-weight:600;opacity:.7}.history-score.good{background:#e1f3ea;color:#155d49}.history-score.mid{background:#fff3d6;color:#7a5600}.history-score.low{background:#fde4e0;color:#8f2d22}
+.history-info{display:grid;gap:4px;min-width:0}.history-info strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-info small{color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.history-delete{flex:none;width:52px;background:none;border:0;border-left:1px solid #eef0ea;color:var(--muted);cursor:pointer;font-size:20px}.history-delete:hover{background:#fde4e0;color:#8f2d22}
+.history-confirm{display:flex;align-items:center;gap:8px;padding:0 14px;flex-wrap:wrap;font-size:14px;font-weight:600}
+.history-empty{text-align:center;padding:48px 20px;color:var(--muted)}.history-empty svg{font-size:44px;color:var(--green)}.history-empty h2{color:var(--ink);margin:10px 0 6px}
+@media(max-width:640px){.history-item{flex-direction:column}.history-delete{width:auto;height:44px;border-left:0;border-top:1px solid #eef0ea}.history-confirm{padding:10px 14px}}
