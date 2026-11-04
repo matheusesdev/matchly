@@ -8,7 +8,9 @@ describe('prompts', () => {
     expect(prompt.match(/<curriculo>/g)).toHaveLength(1)
   })
   it('inclui feedback dos números inventados na nova tentativa', () => {
-    expect(buildOptimizationPrompt('v', 'c', ['35', '2019'])).toContain('35, 2019')
+    expect(buildOptimizationPrompt('v', 'c', { invented: ['35', '2019'] })).toContain('35, 2019')
+    expect(buildOptimizationPrompt('v', 'c', { lowEvidence: true })).toContain('source_quote copiado LITERALMENTE')
+    expect(buildOptimizationPrompt('v', 'c')).toContain('evidence')
     expect(buildOptimizationPrompt('v', 'c')).not.toContain('ATENÇÃO')
   })
 })

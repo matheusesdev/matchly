@@ -8,6 +8,7 @@ import './landing.css'
 import './commercial.css'
 import './score-animation.css'
 import './history.css'
+import './evidence.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><BrowserRouter><App /></BrowserRouter></StrictMode>,

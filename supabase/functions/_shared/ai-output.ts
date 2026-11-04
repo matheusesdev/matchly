@@ -2,7 +2,7 @@
 
 export type Gap = { area: string; descricao: string }
 export type Analysis = { match_score: number; missing_keywords: string[]; gaps: Gap[]; strengths: string[] }
-export type Optimization = { optimized_resume: string; changes_summary: string[] }
+export type Optimization = { optimized_resume: string; changes_summary: string[]; evidence: { line: string; source_quote: string }[] }
 
 const clean = (value: unknown, max: number) =>
   typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : ''
@@ -37,7 +37,14 @@ export function parseOptimization(raw: unknown): Optimization {
   const data = raw as Record<string, unknown>
   const text = typeof data.optimized_resume === 'string' ? data.optimized_resume.trim() : ''
   if (text.length < 50) throw new Error('Currículo otimizado vazio')
-  return { optimized_resume: text.slice(0, 20_000), changes_summary: stringList(data.changes_summary, 8, 200) }
+  const evidence = (Array.isArray(data.evidence) ? data.evidence : [])
+    .map((entry) => {
+      const item = (entry ?? {}) as Record<string, unknown>
+      return { line: clean(item.line, 600), source_quote: clean(item.source_quote, 600) }
+    })
+    .filter((entry) => entry.line)
+    .slice(0, 80)
+  return { optimized_resume: text.slice(0, 20_000), changes_summary: stringList(data.changes_summary, 8, 200), evidence }
 }
 
 const numberToken = /\d[\d.,]*/g

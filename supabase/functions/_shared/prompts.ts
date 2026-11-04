@@ -25,8 +25,12 @@ export const OPTIMIZATION_SCHEMA = {
   properties: {
     optimized_resume: { type: 'STRING' },
     changes_summary: { type: 'ARRAY', items: { type: 'STRING' } },
+    evidence: {
+      type: 'ARRAY',
+      items: { type: 'OBJECT', properties: { line: { type: 'STRING' }, source_quote: { type: 'STRING' } }, required: ['line', 'source_quote'] },
+    },
   },
-  required: ['optimized_resume', 'changes_summary'],
+  required: ['optimized_resume', 'changes_summary', 'evidence'],
 }
 
 // Tags são removidas do texto do usuário para impedir que ele "feche" o bloco de dados.
@@ -56,16 +60,21 @@ ${neutralize(resumeText)}
 </curriculo>`
 }
 
-export function buildOptimizationPrompt(jobText: string, resumeText: string, feedback?: string[]) {
-  const retry = feedback?.length
-    ? `\nATENÇÃO: a versão anterior continha números que não existem no currículo original (${feedback.join(', ')}). Remova-os ou use somente números presentes no original.\n`
-    : ''
+export type OptimizationFeedback = { invented?: string[]; lowEvidence?: boolean }
+
+export function buildOptimizationPrompt(jobText: string, resumeText: string, feedback?: OptimizationFeedback) {
+  const notes: string[] = []
+  if (feedback?.invented?.length) notes.push(`a versão anterior continha números que não existem no currículo original (${feedback.invented.join(', ')}). Remova-os ou use somente números presentes no original.`)
+  if (feedback?.lowEvidence) notes.push('a versão anterior tinha muitas afirmações sem citação válida. Cada linha de conteúdo precisa de um source_quote copiado LITERALMENTE do currículo original; se não houver trecho que a sustente, remova a linha.')
+  const retry = notes.length ? `\nATENÇÃO: ${notes.join(' Além disso, ')}\n` : ''
   return `Reescreva o currículo em texto simples, focado nesta vaga.
 
 Você PODE: reordenar seções e experiências, reescrever frases com verbos de ação, dar destaque a fatos relevantes e usar a terminologia da vaga quando descrever algo que o candidato de fato fez.
 Você NÃO PODE: adicionar empresas, cargos, datas, números, métricas, ferramentas, idiomas, certificações ou resultados que não estejam no currículo original. Se a vaga exige algo ausente, simplesmente não mencione.
 Formato: seções em MAIÚSCULAS em linha própria (ex.: RESUMO, EXPERIÊNCIA PROFISSIONAL, FORMAÇÃO, HABILIDADES), itens de lista iniciados por "- ". Preserve os dados de contato exatamente como estão.
+A primeira linha do texto deve ser o nome do candidato, seguida dos dados de contato, antes da primeira seção.
 changes_summary: até 5 frases curtas descrevendo o que mudou.
+evidence: para CADA linha de conteúdo do currículo reescrito (itens de lista e parágrafos dentro das seções, exceto títulos e contato), devolva {line, source_quote}. "line" é a linha exatamente como aparece em optimized_resume, sem o "- " inicial. "source_quote" é um trecho CONTÍGUO copiado LITERALMENTE, palavra por palavra, do currículo original, que sustenta essa linha. Nunca parafraseie nem traduza o source_quote.
 ${retry}
 <vaga>
 ${neutralize(jobText)}
