@@ -7,7 +7,7 @@ import { MIN_VERIFIED_RATIO, isAcceptable, pickBetter, verifyLetter, type Attemp
 import { factsToText, sanitizeFacts } from '../_shared/facts.ts'
 import { COVER_LETTER_SCHEMA, buildCoverLetterPrompt, isCoverLetterTone, type OptimizationFeedback } from '../_shared/prompts.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
-import { buildRun, recordRun } from '../_shared/telemetry.ts'
+import { buildRun, classifyError, recordRun } from '../_shared/telemetry.ts'
 
 Deno.serve(async (request) => {
   const id = requestId(request)
@@ -57,6 +57,6 @@ Deno.serve(async (request) => {
     await recordRun(client, userId, buildRun({ kind: 'cover_letter', outcome: 'ok', attempts, fidelity: best.fidelity, startedAt }), id)
     return json(request, result, 200, id)
   } catch (error) {
-    if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'cover_letter', outcome: 'error', attempts, startedAt }), id)
-    console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown' })); return json(request, { error: 'Não foi possível gerar a carta.' }, 500, id) }
+    if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'cover_letter', outcome: 'error', attempts, errorCode: classifyError(error), startedAt }), id)
+    console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown', code: classifyError(error) })); return json(request, { error: 'Não foi possível gerar a carta.' }, 500, id) }
 })
