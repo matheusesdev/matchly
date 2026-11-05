@@ -2,14 +2,31 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { ID, analysisRow, optimizedRow, setup } from './support'
 
+// Espera animações e transições de CSS terminarem: medir contraste no meio de um fade (opacidade parcial) dá falso
+// positivo que varia com a velocidade da máquina (visto na CI: elementos diferentes falhando a cada execução).
+// Animações infinitas (ex.: o indicador de carregamento) são ignoradas.
+async function settle(page: Page) {
+  await page.waitForLoadState('networkidle')
+  await page.evaluate(async () => {
+    const finite = document.getAnimations().filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+    await Promise.allSettled(finite.map((animation) => animation.finished))
+  })
+  await page.waitForTimeout(150)
+}
+
 // Falha para qualquer violação WCAG 2 A/AA de impacto sério ou crítico.
 async function expectAccessible(page: Page) {
+  await settle(page)
   const results = await new AxeBuilder({ page })
     // A ilustração da landing é decorativa (aria-hidden) e usa texto de 7-8 px de uma tela de exemplo.
     .exclude('.hero-product')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
   const blocking = results.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
-  const report = blocking.map((violation) => `${violation.id} (${violation.impact}): ${violation.help}\n   ${violation.nodes.slice(0, 3).map((node) => node.target.join(' ')).join('\n   ')}`)
+  const describeNode = (node: (typeof blocking)[number]['nodes'][number]) => {
+    const data = (node.any[0]?.data ?? {}) as Record<string, unknown>
+    return node.target.join(' ') + (data.contrastRatio ? ` fg=${data.fgColor} bg=${data.bgColor} razão=${data.contrastRatio}` : '')
+  }
+  const report = blocking.map((violation) => `${violation.id} (${violation.impact}): ${violation.help}\n   ${violation.nodes.slice(0, 3).map(describeNode).join('\n   ')}`)
   expect(report, report.join('\n')).toEqual([])
 }
 
