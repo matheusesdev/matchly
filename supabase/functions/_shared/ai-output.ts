@@ -65,3 +65,20 @@ export function findUnsupportedNumbers(original: string, optimized: string): str
   }
   return [...unsupported]
 }
+
+export type CoverLetter = { cover_letter: string; evidence: { line: string; source_quote: string }[] }
+
+export function parseCoverLetter(raw: unknown): CoverLetter {
+  if (!raw || typeof raw !== 'object') throw new Error('Resposta da IA inválida')
+  const data = raw as Record<string, unknown>
+  const text = typeof data.cover_letter === 'string' ? data.cover_letter.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim() : ''
+  if (text.length < 200) throw new Error('Carta vazia ou curta demais')
+  const evidence = (Array.isArray(data.evidence) ? data.evidence : [])
+    .map((entry) => {
+      const item = (entry ?? {}) as Record<string, unknown>
+      return { line: clean(item.line, 600), source_quote: clean(item.source_quote, 600) }
+    })
+    .filter((entry) => entry.line)
+    .slice(0, 30)
+  return { cover_letter: text.slice(0, 4000), evidence }
+}

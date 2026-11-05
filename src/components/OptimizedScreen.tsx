@@ -4,9 +4,9 @@ import type { OptimizedResult } from '../lib/api'
 import { parseResumeText } from '../lib/resumeDocx'
 import { findEvidence } from '../../supabase/functions/_shared/evidence'
 
-type Props = { optimized: OptimizedResult; original: string; onBack: () => void }
+type Props = { optimized: OptimizedResult; original: string; onBack: () => void; onCoverLetter: () => void }
 
-export function OptimizedScreen({ optimized, original, onBack }: Props) {
+export function OptimizedScreen({ optimized, original, onBack, onCoverLetter }: Props) {
   const [downloadError, setDownloadError] = useState('')
   const [tab, setTab] = useState<'optimized' | 'original'>('optimized')
   const [selected, setSelected] = useState<number | null>(null)
@@ -38,6 +38,7 @@ export function OptimizedScreen({ optimized, original, onBack }: Props) {
               <small>Toque em uma frase para ver de onde ela veio. Nenhum número ou data novo foi adicionado.</small></>
             : <p>Esta versão foi gerada antes da verificação de origem. Nenhum número ou data novo foi adicionado, mas confira o texto antes de enviar.</p>}
         </div>
+        <button className="primary" onClick={onCoverLetter}>Escrever carta de apresentação</button>
         <button className="outline" onClick={onBack}>Voltar à análise</button>
       </aside>
       <section className="resume-preview">

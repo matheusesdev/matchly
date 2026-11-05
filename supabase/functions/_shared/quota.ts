@@ -1,10 +1,10 @@
 // Cota diária por usuário, registrada em public.usage_events (RLS: select/insert do próprio usuário).
 // O consumo é gravado ANTES da chamada à IA para que requisições paralelas não furem o limite.
 
-export type UsageKind = 'analyze' | 'optimize'
+export type UsageKind = 'analyze' | 'optimize' | 'cover_letter'
 
 export function dailyLimit(kind: UsageKind, read: (name: string) => string | undefined): number {
-  const defaults: Record<UsageKind, number> = { analyze: 5, optimize: 10 }
+  const defaults: Record<UsageKind, number> = { analyze: 5, optimize: 10, cover_letter: 10 }
   const configured = Number(read(`QUOTA_${kind.toUpperCase()}_PER_DAY`))
   return Number.isInteger(configured) && configured > 0 ? configured : defaults[kind]
 }

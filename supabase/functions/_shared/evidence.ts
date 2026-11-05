@@ -38,16 +38,45 @@ export function claimLines(optimizedText: string): string[] {
     .filter((line) => line.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length >= 4)
 }
 
-/** `extraSource` = fatos informados pelo candidato: também valem como prova, mas ficam identificados. */
-export function verifyEvidence(original: string, optimizedText: string, raw: RawEvidence[], extraSource = ''): Fidelity {
+/** Diz de qual fonte (currículo ou respostas do candidato) uma citação vem; null se não existir literalmente. */
+function makeLocator(original: string, extraSource: string) {
   const normalizedOriginal = normalizeForMatch(original)
   const normalizedExtra = normalizeForMatch(extraSource)
-  const locate = (quote: string): EvidenceSource | null => {
+  return (quote: string): EvidenceSource | null => {
     const normalized = normalizeForMatch(quote)
     if (normalized.length < MIN_QUOTE_LENGTH) return null
     if (normalizedOriginal.includes(normalized)) return 'curriculo'
     return normalizedExtra && normalizedExtra.includes(normalized) ? 'candidato' : null
   }
+}
+
+/**
+ * Carta de apresentação: a IA aponta as frases factuais da carta e a citação que as sustenta.
+ * Só valem frases que realmente aparecem na carta; a citação precisa existir no currículo ou nas respostas.
+ * Carta sem nenhuma afirmação apontada tem fidelidade 0 (não dá para provar nada).
+ */
+export function verifyLetter(letter: string, raw: RawEvidence[], original: string, extraSource = ''): Fidelity {
+  const locate = makeLocator(original, extraSource)
+  const normalizedLetter = normalizeForMatch(letter)
+  const seen = new Set<string>()
+  const items: EvidenceItem[] = []
+  for (const entry of raw) {
+    const claim = String(entry.line ?? '').replace(/\s+/g, ' ').trim()
+    const key = normalizeForMatch(claim)
+    if (key.length < MIN_QUOTE_LENGTH || seen.has(key) || !normalizedLetter.includes(key)) continue
+    seen.add(key)
+    const source = locate(String(entry.source_quote ?? ''))
+    items.push(source
+      ? { line: claim, quote: String(entry.source_quote).replace(/\s+/g, ' ').trim().slice(0, MAX_QUOTE_LENGTH), verified: true, source }
+      : { line: claim, quote: '', verified: false })
+  }
+  const verified = items.filter((item) => item.verified).length
+  return { items, total: items.length, verified, ratio: items.length ? verified / items.length : 0 }
+}
+
+/** `extraSource` = fatos informados pelo candidato: também valem como prova, mas ficam identificados. */
+export function verifyEvidence(original: string, optimizedText: string, raw: RawEvidence[], extraSource = ''): Fidelity {
+  const locate = makeLocator(original, extraSource)
   const byLine = new Map<string, string[]>()
   for (const entry of raw) {
     const key = normalizeForMatch(stripBullet(entry.line ?? ''))

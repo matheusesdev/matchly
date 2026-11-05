@@ -61,3 +61,17 @@ export async function optimizeResume(analysisId: string): Promise<OptimizedResul
   if (!data) throw new Error('A otimização não retornou dados')
   return data
 }
+
+export type CoverLetterTone = 'profissional' | 'proximo'
+export type CoverLetterResult = { cover_letter: string; evidence: EvidenceItem[] }
+
+export async function generateCoverLetter(analysisId: string, tone: CoverLetterTone): Promise<CoverLetterResult> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const { data, error } = await supabase.functions.invoke<CoverLetterResult>('generate-cover-letter', {
+    body: { analysis_id: analysisId, tone },
+    headers: await authorizationHeaders(),
+  })
+  if (error) throw await functionError(error, 'Não foi possível gerar a carta')
+  if (!data) throw new Error('A geração não retornou dados')
+  return data
+}
