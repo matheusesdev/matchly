@@ -12,7 +12,7 @@
     "typecheck": "tsc -b",
     "test:e2e": "playwright test",
     "check:functions": "deno check --node-modules-dir=none supabase/functions/*/index.ts",
-    "metrics": "supabase db query --linked --read-only -f supabase/metrics.sql"
+    "metrics": "node scripts/metrics.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
