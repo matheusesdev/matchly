@@ -30,7 +30,7 @@ export function PrivacyPage() {
         <li><strong>Vaga:</strong> o texto da descrição que você cola.</li>
         <li><strong>Resultados:</strong> nota de aderência, pontos fortes, lacunas, palavras-chave, currículo otimizado e carta de apresentação gerados para você.</li>
         <li><strong>Respostas suas:</strong> os fatos que você informa para cobrir lacunas da vaga.</li>
-        <li><strong>Uso:</strong> data e tipo de cada análise, otimização ou carta, usados para aplicar limites diários.</li>
+        <li><strong>Uso:</strong> data e tipo de cada análise, otimização ou carta, usados para aplicar limites diários, e um registro técnico de cada chamada de IA (resultado, número de tentativas, duração e índice de verificação), sem o conteúdo do seu currículo, usado para medir falhas e melhorar a qualidade.</li>
         <li><strong>Dados técnicos de acesso:</strong> endereço IP e navegador, registrados pelos provedores de infraestrutura para segurança e funcionamento.</li>
       </ul>
       <p>Não coletamos dados sensíveis de propósito. Se o seu currículo contiver algum (por exemplo, informação de saúde ou filiação), ele será tratado como o restante do texto. Considere removê-lo antes de enviar.</p></section>
@@ -60,7 +60,7 @@ export function PrivacyPage() {
       <p>Esses provedores operam fora do Brasil (o banco de dados do Matchly fica em data center nos Estados Unidos). Por isso seus dados podem ser tratados no exterior, com as garantias previstas na LGPD para transferências internacionais.</p></section>
 
     <section><h2>7. Por quanto tempo guardamos</h2>
-      <p>Mantemos seus dados enquanto sua conta existir. Você pode excluir uma análise a qualquer momento (o texto do currículo também é removido se nenhuma outra análise o usar) ou excluir a conta inteira na página <Link to="/conta">Minha conta</Link>, o que apaga currículos, análises, respostas e registros de uso. Cópias de segurança dos provedores podem permanecer por um período limitado, conforme as políticas deles, até serem sobrescritas.</p></section>
+      <p>Mantemos seus dados enquanto sua conta existir. Você pode excluir uma análise a qualquer momento (o texto do currículo também é removido se nenhuma outra análise o usar) ou excluir a conta inteira na página <Link to="/conta">Minha conta</Link>, o que apaga currículos, análises, respostas e registros de uso e de execução. Cópias de segurança dos provedores podem permanecer por um período limitado, conforme as políticas deles, até serem sobrescritas.</p></section>
 
     <section><h2>8. Seus direitos</h2>
       <p>Pela LGPD você pode: confirmar que tratamos seus dados, acessá-los, corrigi-los, pedir anonimização ou eliminação, solicitar portabilidade, saber com quem compartilhamos e revogar consentimentos. Na página <Link to="/conta">Minha conta</Link> você baixa todos os seus dados em um arquivo e exclui sua conta sozinho, na hora. Para qualquer outro pedido, escreva para {contact()}.</p>

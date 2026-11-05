@@ -39,7 +39,7 @@ export function AccountPage({ user }: { user: User }) {
 
     <section className="panel account-card">
       <h2><DownloadSimple weight="fill" /> Baixar meus dados</h2>
-      <p>Receba em um arquivo JSON tudo o que guardamos: currículos (texto extraído), análises, versões otimizadas, cartas, respostas e registros de uso.</p>
+      <p>Receba em um arquivo JSON tudo o que guardamos: currículos (texto extraído), análises, versões otimizadas, cartas, respostas, registros de uso e registros técnicos das chamadas de IA.</p>
       <button className="outline" disabled={exporting} onClick={exportData}>{exporting ? 'Reunindo seus dados...' : 'Baixar arquivo'}</button>
       {exportError && <div className="flow-error" role="alert">{exportError}</div>}
     </section>

@@ -75,6 +75,7 @@ test.describe('minha conta (LGPD)', () => {
     expect(data.curriculos).toHaveLength(1)
     expect(data.analises).toHaveLength(1)
     expect(data.uso).toHaveLength(1)
+    expect(data.execucoes_ia).toHaveLength(1)
   })
 
   test('exclusão exige digitar o e-mail e leva à confirmação', async ({ page }) => {
