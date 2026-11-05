@@ -133,7 +133,7 @@ export function buildCoverLetterPrompt(jobText: string, resumeText: string, fact
   return `Escreva uma carta de apresentação em português do Brasil para esta vaga, a partir do currículo.
 
 ${toneRule}
-Estrutura: saudação, 3 parágrafos, despedida e o nome do candidato. Entre 150 e 220 palavras. Separe os parágrafos com uma linha em branco.
+Estrutura: saudação em linha própria, EXATAMENTE 3 parágrafos (cada um com 3 a 5 frases) separados por uma linha em branco, despedida em linha própria e o nome do candidato. Entre 150 e 220 palavras: uma carta com menos de 150 palavras está ERRADA, então desenvolva cada parágrafo.
 - Parágrafo 1: interesse na vaga (cite o cargo e a empresa se constarem na vaga) e uma frase que resuma o perfil do candidato.
 - Parágrafo 2: relacione explicitamente 2 ou 3 requisitos da vaga a experiências ESPECÍFICAS do currículo, usando os termos da vaga (por exemplo: "A vaga pede X; na empresa Y eu fiz Z"). Priorize os requisitos que o candidato de fato atende e não comente os que não atende.
 - Parágrafo 3: fechamento com disponibilidade para conversar. Não copie frases inteiras do currículo; reescreva com suas palavras, mantendo fatos e números exatos.
