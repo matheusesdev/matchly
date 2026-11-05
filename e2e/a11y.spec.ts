@@ -4,7 +4,10 @@ import { ID, analysisRow, optimizedRow, setup } from './support'
 
 // Falha para qualquer violação WCAG 2 A/AA de impacto sério ou crítico.
 async function expectAccessible(page: Page) {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
+  const results = await new AxeBuilder({ page })
+    // A ilustração da landing é decorativa (aria-hidden) e usa texto de 7-8 px de uma tela de exemplo.
+    .exclude('.hero-product')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
   const blocking = results.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
   const report = blocking.map((violation) => `${violation.id} (${violation.impact}): ${violation.help}\n   ${violation.nodes.slice(0, 3).map((node) => node.target.join(' ')).join('\n   ')}`)
   expect(report, report.join('\n')).toEqual([])

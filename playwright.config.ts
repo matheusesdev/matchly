@@ -15,7 +15,10 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${PORT}`, trace: 'retain-on-failure', acceptDownloads: true },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npx vite --port ${PORT} --strictPort`,
+    // Serve o build de produção (determinístico e fiel ao que vai ao ar). O servidor de desenvolvimento recarrega a página
+    // ao descobrir dependências em uma máquina limpa, o que derruba testes no meio da execução.
+    command: `npx vite build && npx vite preview --port ${PORT} --strictPort`,
+    timeout: 120_000,
     port: PORT,
     reuseExistingServer: !process.env.CI,
     env: { VITE_SUPABASE_URL: 'https://e2eproject.supabase.co', VITE_SUPABASE_PUBLISHABLE_KEY: 'e2e-publishable-key' },
