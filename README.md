@@ -199,13 +199,19 @@ As duas tabelas possuem RLS. Um usuário autenticado acessa somente registros cu
 
 ## Qualidade
 
-### Build de produção
+### Verificações automáticas
 
-```bash
-npm run build
-```
+| Comando | O que garante |
+| --- | --- |
+| `npm run typecheck` | Tipos do front-end. |
+| `npm test` | Testes unitários (Vitest): validação da IA, verificação de origem, cotas, exportação PDF/DOCX, textos legais. |
+| `npm run build` | Build de produção (inclui checagem de tipos). |
+| `npm run test:e2e` | Testes de ponta a ponta (Playwright) com o Supabase simulado em `e2e/support.ts`, incluindo acessibilidade WCAG 2 A/AA (axe) e layout em 360 px. Não precisam de `.env` nem de rede. |
+| `npm run check:functions` | Tipos das Edge Functions (`deno check`); exige o [Deno](https://deno.com) instalado. |
 
-O comando verifica TypeScript antes de gerar o bundle.
+Na primeira execução dos testes de ponta a ponta, instale o navegador: `npx playwright install chromium`.
+
+O workflow [`ci.yml`](.github/workflows/ci.yml) roda tudo isso em cada pull request e em cada push na `main`.
 
 ### QA visual
 

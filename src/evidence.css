@@ -16,3 +16,6 @@
 .ev-line.warn{border-left-color:#e3a52c;background:#fff8e6}.ev-line.warn svg{color:#b27a00}
 .ev-source{margin:2px 8px 8px;padding:10px 12px;border-radius:10px;background:#fff;border:1px solid #e3e6df;font-size:13px;display:grid;gap:4px}
 .ev-source q{color:var(--ink);font-style:italic}
+/* No celular a regra original .paper-head .outline{font-size:0} escondia o texto dos botões de download/cópia. */
+.paper-head .download-actions .outline{font-size:12px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 12px}
+.paper-head .download-actions .outline svg{width:16px;height:16px;flex:none}

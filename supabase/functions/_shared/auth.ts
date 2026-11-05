@@ -1,7 +1,8 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 type AccessResult =
-  | { allowed: true; client: ReturnType<typeof createClient>; userId: string }
+  // Sem schema tipado do banco: SupabaseClient com os genéricos padrão (any) em vez de ReturnType<typeof createClient>.
+  | { allowed: true; client: SupabaseClient; userId: string }
   | { allowed: false; status: number; error: string }
 
 export async function authorizeMvpUser(request: Request): Promise<AccessResult> {

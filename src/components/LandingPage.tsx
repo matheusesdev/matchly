@@ -52,7 +52,7 @@ export function LandingPage({ onStart }: Props) {
         <div className="hero-actions"><button className="primary landing-cta" onClick={onStart}>Acesso ao MVP <ArrowRight weight="bold" /></button><span><ShieldCheck weight="fill" /> Testes fechados para convidados</span></div>
         <div className="hero-proof"><p><strong>Feito para quem não quer passar despercebido</strong><br />Análise personalizada em poucos minutos</p></div>
       </div>
-      <div className="hero-product">
+      <div className="hero-product" aria-hidden="true">
         <div className="float-card float-top"><span><TrendUp weight="fill" /></span><div><strong>Exemplo ilustrativo</strong><small>dados fictícios</small></div></div>
         <div className={`product-window ${scoreOptimized ? 'is-score-optimized' : ''} ${detailsOptimized ? 'is-details-optimized' : ''}`}><div className="match-scan"><span>Otimizando currículo</span></div>
           <div className="window-bar"><div><i /><i /><i /></div><span>matchly.app/análise</span></div>
