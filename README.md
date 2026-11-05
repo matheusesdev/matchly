@@ -213,6 +213,16 @@ Na primeira execução dos testes de ponta a ponta, instale o navegador: `npx pl
 
 O workflow [`ci.yml`](.github/workflows/ci.yml) roda tudo isso em cada pull request e em cada push na `main`.
 
+### Observabilidade
+
+Cada chamada de IA grava uma linha em `ai_runs` (tipo, resultado, tentativas, fidelidade e duração; **sem** conteúdo de currículo, vaga ou e-mail) e emite um log estruturado nas Edge Functions (painel do Supabase > Edge Functions > Logs). Para ver as métricas agregadas:
+
+```bash
+npm run metrics
+```
+
+Mostra volume por dia, taxa de falhas por tipo, **qualidade da verificação de origem** (fidelidade média, p10 e mediana; abaixo de 0,6 o app regenera uma vez), latência (p50/p95) e bloqueios por cota. As consultas ficam em [`supabase/metrics.sql`](supabase/metrics.sql) e usam a CLI do Supabase já logada e vinculada ao projeto.
+
 ### QA visual
 
 Com o servidor local em execução:
