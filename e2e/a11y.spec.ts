@@ -11,6 +11,10 @@ async function expectAccessible(page: Page) {
 }
 
 test.describe('acessibilidade (axe, WCAG 2 A/AA)', () => {
+  // Medir contraste no meio de uma animação de entrada (opacidade parcial) dá falso positivo e varia com a velocidade da máquina.
+  // O app respeita prefers-reduced-motion, que é o estado estável da interface.
+  test.use({ reducedMotion: 'reduce' })
+
   test('páginas públicas', async ({ page }) => {
     await setup(page)
     for (const path of ['/', '/termos', '/privacidade']) {
