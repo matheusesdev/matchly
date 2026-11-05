@@ -10,7 +10,7 @@ import { parseAnalysisDraft, verifyAnalysis } from '../_shared/analysis.ts'
 import { ANALYSIS_SCHEMA, buildAnalysisPrompt } from '../_shared/prompts.ts'
 import { MAX_RESUME_BYTES, detectResumeKind, sha256Hex, tidyExtractedText } from '../_shared/files.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
-import { buildRun, recordRun } from '../_shared/telemetry.ts'
+import { buildRun, classifyError, recordRun } from '../_shared/telemetry.ts'
 
 const MAX_RESUME_CHARS = 20_000
 
@@ -62,6 +62,6 @@ Deno.serve(async (request) => {
     await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'ok', attempts, fidelity: { verified: stats.kept, total: stats.proposed, ratio: stats.proposed ? stats.kept / stats.proposed : 1 }, startedAt }), id)
     return json(request, { analysis_id: saved.id, ...saved }, 200, id)
   } catch (error) {
-    if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'analyze', outcome: 'error', attempts, startedAt }), id)
-    console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown' })); return json(request, { error: 'Não foi possível concluir a análise.' }, 500, id) }
+    if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'analyze', outcome: 'error', attempts, errorCode: classifyError(error), startedAt }), id)
+    console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown', code: classifyError(error) })); return json(request, { error: 'Não foi possível concluir a análise.' }, 500, id) }
 })

@@ -25,14 +25,19 @@ export async function callGemini(prompt: string, schema: unknown, options: { tem
         })
         if (response.ok) {
           const payload = await response.json()
-          const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text
-          if (!text) throw new Error('Gemini indisponível')
-          return JSON.parse(text)
+          const candidateOutput = payload?.candidates?.[0]
+          const finish = String(candidateOutput?.finishReason ?? payload?.promptFeedback?.blockReason ?? 'UNKNOWN').replace(/[^A-Z_]/g, '').slice(0, 24)
+          const text = candidateOutput?.content?.parts?.[0]?.text
+          if (!text) throw new Error(`Gemini sem texto (${finish})`)
+          try { return JSON.parse(text) } catch { throw new Error(`Gemini JSON inválido (${finish})`) }
         }
         lastError = `Gemini status ${response.status}`
         if (!retryableStatuses.has(response.status)) break
       } catch (error) {
-        lastError = error instanceof DOMException && error.name === 'AbortError' ? 'Gemini timeout' : 'Gemini indisponível'
+        // Mensagens "Gemini ..." são nossas (sem dados do usuário) e ajudam a diagnosticar a causa.
+        lastError = error instanceof DOMException && error.name === 'AbortError' ? 'Gemini timeout'
+          : error instanceof Error && error.message.startsWith('Gemini ') ? error.message
+          : 'Gemini indisponível'
       } finally { clearTimeout(timer) }
       if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 400))
     }

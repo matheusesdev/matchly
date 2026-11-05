@@ -4,7 +4,7 @@ import { buildRun, recordRun } from '../supabase/functions/_shared/telemetry'
 describe('buildRun', () => {
   it('calcula a duração e arredonda a fidelidade', () => {
     const run = buildRun({ kind: 'optimize', outcome: 'ok', attempts: 2, fidelity: { verified: 7, total: 9, ratio: 7 / 9 }, startedAt: 1000, now: 4321 })
-    expect(run).toEqual({ kind: 'optimize', outcome: 'ok', attempts: 2, verified: 7, total: 9, fidelity_ratio: 0.778, duration_ms: 3321 })
+    expect(run).toEqual({ kind: 'optimize', outcome: 'ok', attempts: 2, verified: 7, total: 9, fidelity_ratio: 0.778, duration_ms: 3321, error_code: null })
   })
   it('deixa fidelidade nula quando não se aplica (ex.: análise ou erro)', () => {
     const run = buildRun({ kind: 'analyze', outcome: 'error', startedAt: 10, now: 10 })

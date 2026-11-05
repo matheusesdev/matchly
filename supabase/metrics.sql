@@ -49,3 +49,11 @@ select count(distinct user_id) as usuarios_ativos,
        count(*) filter (where outcome = 'invalid_input') as arquivos_ou_textos_invalidos
 from public.ai_runs
 where created_at > now() - interval '7 days';
+
+-- 6) Falhas por causa (últimos 7 dias): gemini_429/503 = limite ou indisponibilidade da IA; *_bad_json_max_tokens = resposta cortada;
+--    invalid_ai_output = a IA devolveu algo fora do formato; db_* = erro do banco
+select kind as tipo, error_code as causa, count(*) as total, max(to_char(created_at, 'DD/MM HH24:MI')) as ultima_vez
+from public.ai_runs
+where outcome = 'error' and created_at > now() - interval '7 days'
+group by 1, 2
+order by 3 desc;
