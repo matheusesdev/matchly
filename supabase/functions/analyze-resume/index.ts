@@ -6,7 +6,7 @@ import { authorizeMvpUser } from '../_shared/auth.ts'
 import { corsHeaders, isAllowedOrigin } from '../_shared/cors.ts'
 import { callGemini } from '../_shared/gemini.ts'
 import { isMultipartRequest, json, requestId } from '../_shared/http.ts'
-import { parseAnalysis } from '../_shared/ai-output.ts'
+import { parseAnalysisDraft, verifyAnalysis } from '../_shared/analysis.ts'
 import { ANALYSIS_SCHEMA, buildAnalysisPrompt } from '../_shared/prompts.ts'
 import { MAX_RESUME_BYTES, detectResumeKind, sha256Hex, tidyExtractedText } from '../_shared/files.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
@@ -48,7 +48,9 @@ Deno.serve(async (request) => {
     if (resumeText.length < 50) return await invalid('Não encontramos texto suficiente no arquivo. Se for um PDF escaneado (imagem), envie uma versão com texto selecionável ou em DOCX.', 422)
     if (resumeText.length > MAX_RESUME_CHARS) return await invalid('O currículo é longo demais. Envie uma versão de até cerca de 5 páginas.', 422)
     if (!(await consumeQuota(client, userId, 'analyze', dailyLimit('analyze', (n) => Deno.env.get(n))))) { await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'quota_exceeded', startedAt }), id); return json(request, { error: 'Você atingiu o limite diário de análises. Tente novamente amanhã.' }, 429, id) }
-    const analysis = parseAnalysis(await callGemini(buildAnalysisPrompt(jobText, resumeText), ANALYSIS_SCHEMA))
+    attempts = 1
+    // As citações da IA são conferidas contra o currículo e a vaga; o que não tem prova (ou tem número errado) é descartado.
+    const { analysis, stats } = verifyAnalysis(parseAnalysisDraft(await callGemini(buildAnalysisPrompt(jobText, resumeText), ANALYSIS_SCHEMA)), resumeText, jobText)
     const contentHash = await sha256Hex(resumeText)
     const { data: existing } = await client.from('resumes').select('id').eq('user_id', userId).eq('content_hash', contentHash).limit(1).maybeSingle()
     let resumeId: string | undefined = existing?.id
@@ -56,9 +58,8 @@ Deno.serve(async (request) => {
       const { data: created, error: resumeError } = await client.from('resumes').insert({ user_id: userId, original_filename: file.name, raw_text: resumeText, content_hash: contentHash }).select('id').single(); if (resumeError) throw resumeError
       resumeId = created.id
     }
-    const { data: saved, error } = await client.from('analyses').insert({ user_id: userId, resume_id: resumeId, job_text: jobText, ...analysis }).select('id, match_score, missing_keywords, gaps, strengths').single(); if (error) throw error
-    attempts = 1
-    await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'ok', attempts, startedAt }), id)
+    const { data: saved, error } = await client.from('analyses').insert({ user_id: userId, resume_id: resumeId, job_text: jobText, ...analysis }).select('id, match_score, missing_keywords, matched_keywords, gaps, strengths').single(); if (error) throw error
+    await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'ok', attempts, fidelity: { verified: stats.kept, total: stats.proposed, ratio: stats.proposed ? stats.kept / stats.proposed : 1 }, startedAt }), id)
     return json(request, { analysis_id: saved.id, ...saved }, 200, id)
   } catch (error) {
     if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'analyze', outcome: 'error', attempts, startedAt }), id)

@@ -10,14 +10,18 @@ export const ANALYSIS_SCHEMA = {
   type: 'OBJECT',
   properties: {
     match_score: { type: 'INTEGER' },
-    strengths: { type: 'ARRAY', items: { type: 'STRING' } },
+    strengths: {
+      type: 'ARRAY',
+      items: { type: 'OBJECT', properties: { text: { type: 'STRING' }, resume_quote: { type: 'STRING' } }, required: ['text', 'resume_quote'] },
+    },
+    matched_keywords: { type: 'ARRAY', items: { type: 'STRING' } },
     missing_keywords: { type: 'ARRAY', items: { type: 'STRING' } },
     gaps: {
       type: 'ARRAY',
-      items: { type: 'OBJECT', properties: { area: { type: 'STRING' }, descricao: { type: 'STRING' } }, required: ['area', 'descricao'] },
+      items: { type: 'OBJECT', properties: { area: { type: 'STRING' }, descricao: { type: 'STRING' }, job_quote: { type: 'STRING' } }, required: ['area', 'descricao', 'job_quote'] },
     },
   },
-  required: ['match_score', 'strengths', 'missing_keywords', 'gaps'],
+  required: ['match_score', 'strengths', 'matched_keywords', 'missing_keywords', 'gaps'],
 }
 
 export const OPTIMIZATION_SCHEMA = {
@@ -47,9 +51,10 @@ Rubrica do match_score (inteiro de 0 a 100), somando:
 Seja conservador: requisito não comprovado no texto não pontua.
 
 Campos:
-- strengths: até 6 pontos fortes, cada um ancorado em algo que está no currículo.
-- missing_keywords: até 10 termos importantes da vaga que NÃO aparecem no currículo.
-- gaps: até 5 itens {area, descricao} explicando requisitos da vaga não comprovados.
+- strengths: até 6 itens {text, resume_quote}. "text" é um ponto forte em uma frase curta. "resume_quote" é um trecho CONTÍGUO copiado LITERALMENTE, palavra por palavra, do currículo que comprova o ponto. Não escreva em "text" números, anos ou quantidades que não estejam no currículo; copie-os exatamente.
+- matched_keywords: até 10 termos CURTOS (1 a 3 palavras, como "Excel avançado" ou "SAP") que a vaga pede e que aparecem no currículo.
+- missing_keywords: até 10 termos CURTOS que a vaga pede e que NÃO aparecem no currículo.
+- gaps: até 5 itens {area, descricao, job_quote}. "job_quote" é um trecho CONTÍGUO copiado LITERALMENTE da vaga que mostra o requisito. Só liste requisitos que a vaga de fato exija, nunca suposições. Se o currículo atende ou supera um requisito (por exemplo, tempo de experiência igual ou maior que o mínimo pedido), não liste como lacuna.
 
 <vaga>
 ${neutralize(jobText)}

@@ -1,27 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findUnsupportedNumbers, parseAnalysis, parseOptimization } from '../supabase/functions/_shared/ai-output'
-
-describe('parseAnalysis', () => {
-  it('limita o score a 0-100 e arredonda', () => {
-    expect(parseAnalysis({ match_score: 140.4 }).match_score).toBe(100)
-    expect(parseAnalysis({ match_score: -5 }).match_score).toBe(0)
-    expect(parseAnalysis({ match_score: 72.6 }).match_score).toBe(73)
-  })
-  it('rejeita score ausente ou não numérico', () => {
-    expect(() => parseAnalysis({})).toThrow()
-    expect(() => parseAnalysis({ match_score: 'abc' })).toThrow()
-    expect(() => parseAnalysis(null)).toThrow()
-  })
-  it('normaliza listas, remove duplicados e gaps incompletos', () => {
-    const result = parseAnalysis({
-      match_score: 60, strengths: ['  Figma ', 'Figma', 42, ''], missing_keywords: 'x',
-      gaps: [{ area: 'Dados', descricao: 'Falta' }, { area: 'Sem descricao' }, null],
-    })
-    expect(result.strengths).toEqual(['Figma'])
-    expect(result.missing_keywords).toEqual([])
-    expect(result.gaps).toEqual([{ area: 'Dados', descricao: 'Falta' }])
-  })
-})
+import { findUnsupportedNumbers, parseOptimization } from '../supabase/functions/_shared/ai-output'
 
 describe('parseOptimization', () => {
   it('exige texto não vazio', () => {

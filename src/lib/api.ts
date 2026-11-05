@@ -7,6 +7,7 @@ export type AnalysisResult = {
   analysis_id: string
   match_score: number
   missing_keywords: string[]
+  matched_keywords?: string[]
   gaps: Gap[]
   strengths: string[]
 }
