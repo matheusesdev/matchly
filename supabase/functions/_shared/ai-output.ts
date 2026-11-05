@@ -1,4 +1,5 @@
 // Módulo puro (sem APIs do Deno) para poder ser testado com Vitest.
+import { splitSentences } from './evidence.ts'
 
 export type Optimization = { optimized_resume: string; changes_summary: string[]; evidence: { line: string; source_quote: string }[] }
 
@@ -54,7 +55,28 @@ export const countWords = (text: string) => text.split(/\s+/).filter((word) => /
 const SIGN_OFF = /([.!?])[ \t]+((?:Atenciosamente|Cordialmente|Cumprimentos|Um abraço|Abraços?),)/
 
 export function normalizeLetter(text: string): string {
-  return text.replace(/\r\n/g, '\n').replace(SIGN_OFF, '$1\n\n$2').replace(/\n{3,}/g, '\n\n').trim()
+  const separated = text.replace(/\r\n/g, '\n').replace(SIGN_OFF, '$1\n\n$2').replace(/\n{3,}/g, '\n\n').trim()
+  return ensureParagraphs(separated)
+}
+
+const SIGN_OFF_START = /(?:Atenciosamente|Cordialmente|Cumprimentos|Um abraço|Abraços?),/g
+
+/**
+ * Se a IA devolver o corpo da carta em um bloco único, reconstrói 3 parágrafos (abertura, meio, fechamento) a partir das
+ * frases. Só reorganiza espaços: o texto das frases não muda, então a verificação de origem continua valendo.
+ */
+export function ensureParagraphs(text: string): string {
+  const signOffs = [...text.matchAll(SIGN_OFF_START)]
+  const cut = signOffs.length ? signOffs[signOffs.length - 1].index! : text.length
+  const body = text.slice(0, cut).trim()
+  const signOff = text.slice(cut).trim()
+  if (body.includes('\n\n')) return text
+  const sentences = splitSentences(body.replace(/\s*\n\s*/g, ' '))
+  if (sentences.length < 5) return text
+  const opening = sentences.slice(0, 2).join(' ')
+  const closing = sentences[sentences.length - 1]
+  const middle = sentences.slice(2, -1).join(' ')
+  return [opening, middle, closing, signOff].filter(Boolean).join('\n\n')
 }
 
 export function parseCoverLetter(raw: unknown): CoverLetter {

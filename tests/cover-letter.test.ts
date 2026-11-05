@@ -116,3 +116,34 @@ describe('carta: despedida em parágrafo próprio e tamanho mínimo', () => {
     expect(buildCoverLetterPrompt('v', 'c', '', 'profissional', { tooShort: true })).toContain('curta demais')
   })
 })
+
+import { ensureParagraphs } from '../supabase/functions/_shared/ai-output'
+
+describe('carta devolvida em um bloco único (caso real do teste em produção)', () => {
+  const oneBlock = 'Olá, Grupo Exemplo. Tenho muito interesse na vaga de Analista Financeiro Sênior. Sou uma profissional com sólida trajetória. A vaga pede conciliação bancária; eu fui responsável pela conciliação diária de 150 contas. A vaga também pede liderança; eu orientei 2 analistas juniores. Além disso, utilizo Excel avançado e SAP. Estou à disposição para conversar.\n\nAbraço,\nCarolina Mendes Ribeiro'
+
+  it('reconstrói abertura, meio e fechamento e mantém a despedida em parágrafo próprio', () => {
+    const paragraphs = ensureParagraphs(oneBlock).split('\n\n')
+    expect(paragraphs).toHaveLength(4)
+    expect(paragraphs[0]).toBe('Olá, Grupo Exemplo. Tenho muito interesse na vaga de Analista Financeiro Sênior.')
+    expect(paragraphs[1]).toContain('A vaga pede conciliação bancária')
+    expect(paragraphs[2]).toBe('Estou à disposição para conversar.')
+    expect(paragraphs[3]).toBe('Abraço,\nCarolina Mendes Ribeiro')
+  })
+
+  it('não muda nenhuma palavra (só espaços), então a verificação de origem continua valendo', () => {
+    const squash = (s: string) => s.replace(/\s+/g, ' ').trim()
+    expect(squash(ensureParagraphs(oneBlock))).toBe(squash(oneBlock))
+  })
+
+  it('não mexe em carta que já tem parágrafos nem em textos curtos', () => {
+    const ok = 'Prezados,\n\nUma frase. Outra frase. Mais uma. E outra. Fim.\n\nAtenciosamente,\nAna'
+    expect(ensureParagraphs(ok)).toBe(ok)
+    expect(ensureParagraphs('Oi. Tudo bem. Vaga.\n\nAbraço,\nAna')).toBe('Oi. Tudo bem. Vaga.\n\nAbraço,\nAna')
+  })
+
+  it('normalizeLetter aplica a reconstrução e o prompt exige exatamente 3 parágrafos', () => {
+    expect(normalizeLetter(oneBlock).split('\n\n').length).toBeGreaterThanOrEqual(4)
+    expect(buildCoverLetterPrompt('v', 'c', '', 'profissional')).toContain('EXATAMENTE 3 parágrafos')
+  })
+})
