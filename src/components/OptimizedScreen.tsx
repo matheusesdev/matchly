@@ -13,6 +13,7 @@ export function OptimizedScreen({ optimized, original, onBack }: Props) {
   const evidence = optimized.evidence ?? []
   const verified = evidence.filter((item) => item.verified).length
   const pending = evidence.length - verified
+  const informed = evidence.filter((item) => item.verified && item.source === 'candidato').length
   const blocks = parseResumeText(optimized.optimized_resume)
 
   const download = async (format: 'docx' | 'pdf') => {
@@ -32,7 +33,7 @@ export function OptimizedScreen({ optimized, original, onBack }: Props) {
         <div className="fidelity" aria-live="polite">
           <h4><ShieldCheck weight="fill" /> Fidelidade ao original</h4>
           {evidence.length > 0
-            ? <><p><strong>{verified} de {evidence.length}</strong> afirmações têm origem comprovada no seu currículo.</p>
+            ? <><p><strong>{verified} de {evidence.length}</strong> afirmações têm origem comprovada{informed > 0 ? ` (${informed} ${informed === 1 ? 'veio' : 'vieram'} das suas respostas)` : ' no seu currículo'}.</p>
               {pending > 0 && <p className="fidelity-warn"><Warning weight="fill" /> {pending} {pending === 1 ? 'frase merece' : 'frases merecem'} sua conferência (em amarelo).</p>}
               <small>Toque em uma frase para ver de onde ela veio. Nenhum número ou data novo foi adicionado.</small></>
             : <p>Esta versão foi gerada antes da verificação de origem. Nenhum número ou data novo foi adicionado, mas confira o texto antes de enviar.</p>}
@@ -65,7 +66,7 @@ export function OptimizedScreen({ optimized, original, onBack }: Props) {
                 </button>
                 {open && <div className="ev-source" role="note">
                   {item.verified
-                    ? <><strong>Origem no seu currículo</strong><q>{item.quote}</q></>
+                    ? <><strong className="ev-tag">{item.source === 'candidato' ? 'Informado por você' : 'Origem no seu currículo'}</strong><q>{item.quote}</q></>
                     : <><strong>Conferir antes de enviar</strong>Não encontramos no seu currículo um trecho que comprove esta frase. Mantenha só se for verdade.</>}
                 </div>}
               </div>

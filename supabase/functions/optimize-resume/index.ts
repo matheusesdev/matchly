@@ -5,6 +5,7 @@ import { isJsonRequest, json, requestId } from '../_shared/http.ts'
 import { findUnsupportedNumbers, parseOptimization, type Optimization } from '../_shared/ai-output.ts'
 import { MIN_VERIFIED_RATIO, isAcceptable, pickBetter, verifyEvidence, type Attempt } from '../_shared/evidence.ts'
 import { OPTIMIZATION_SCHEMA, buildOptimizationPrompt, type OptimizationFeedback } from '../_shared/prompts.ts'
+import { factsToText, sanitizeFacts } from '../_shared/facts.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
 
 Deno.serve(async (request) => {
@@ -17,15 +18,18 @@ Deno.serve(async (request) => {
     const { client, userId } = access
     const body = await request.json(); const analysisId = body?.analysis_id
     if (typeof analysisId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(analysisId)) return json(request, { error: 'Identificador inválido.' }, 400, id)
-    const { data, error } = await client.from('analyses').select('id, job_text, resumes(raw_text)').eq('id', analysisId).eq('user_id', userId).single(); if (error || !data) return json(request, { error: 'Análise não encontrada.' }, 404, id)
+    const { data, error } = await client.from('analyses').select('id, job_text, user_facts, resumes(raw_text)').eq('id', analysisId).eq('user_id', userId).single(); if (error || !data) return json(request, { error: 'Análise não encontrada.' }, 404, id)
     const resume = Array.isArray(data.resumes) ? data.resumes[0] : data.resumes
     const original: string = resume?.raw_text ?? ''
+    // Fatos informados pelo candidato vêm do banco (nunca do corpo da requisição) e são sanitizados.
+    const factsText = factsToText(sanitizeFacts(data.user_facts))
+    const knownSource = factsText ? `${original}\n${factsText}` : original
     if (!(await consumeQuota(client, userId, 'optimize', dailyLimit('optimize', (n) => Deno.env.get(n))))) return json(request, { error: 'Você atingiu o limite diário de otimizações. Tente novamente amanhã.' }, 429, id)
 
     // Até 2 tentativas: reprova números inventados e exige que a maioria das afirmações cite um trecho real do original.
     const generate = async (feedback?: OptimizationFeedback): Promise<Attempt<Optimization>> => {
-      const value = parseOptimization(await callGemini(buildOptimizationPrompt(data.job_text, original, feedback), OPTIMIZATION_SCHEMA))
-      return { value, invented: findUnsupportedNumbers(original, value.optimized_resume), fidelity: verifyEvidence(original, value.optimized_resume, value.evidence) }
+      const value = parseOptimization(await callGemini(buildOptimizationPrompt(data.job_text, original, feedback, factsText), OPTIMIZATION_SCHEMA))
+      return { value, invented: findUnsupportedNumbers(knownSource, value.optimized_resume), fidelity: verifyEvidence(original, value.optimized_resume, value.evidence, factsText) }
     }
     let best = await generate()
     if (!isAcceptable(best)) {
