@@ -11,9 +11,10 @@ import { LandingPage } from './components/LandingPage'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { HistoryPage } from './components/HistoryPage'
 import { OptimizedScreen } from './components/OptimizedScreen'
-import { analyzeResume, optimizeResume, type AnalysisResult, type OptimizedResult } from './lib/api'
+import { analyzeResume, generateCoverLetter, optimizeResume, type AnalysisResult, type CoverLetterResult, type CoverLetterTone, type OptimizedResult } from './lib/api'
 import { fetchAnalysis, saveUserFacts, type SavedAnalysis } from './lib/analyses'
 import { GapQuestion } from './components/GapQuestion'
+import { CoverLetterScreen } from './components/CoverLetterScreen'
 import { MAX_FACTS, type UserFact } from '../supabase/functions/_shared/facts'
 
 const jobExample = `Product Designer Sênior
@@ -126,6 +127,7 @@ type ResultScreenProps = {
   onRemoveFact: (area: string) => Promise<void>
   onOptimize: () => void
   onRegenerate: () => void
+  onCoverLetter: () => void
   onReset: () => void
   busy: boolean
   error: string
@@ -133,7 +135,7 @@ type ResultScreenProps = {
 
 const sameArea = (a: string, b: string) => a.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase() === b.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
-function ResultScreen({ analysis, hasOptimized, facts, onSaveFact, onRemoveFact, onOptimize, onRegenerate, onReset, busy, error }: ResultScreenProps) {
+function ResultScreen({ analysis, hasOptimized, facts, onSaveFact, onRemoveFact, onOptimize, onRegenerate, onCoverLetter, onReset, busy, error }: ResultScreenProps) {
   const score = analysis.match_score
   const strengths = analysis.strengths
   const gaps = analysis.gaps
@@ -156,7 +158,7 @@ function ResultScreen({ analysis, hasOptimized, facts, onSaveFact, onRemoveFact,
     </div>
     <section className="keywords panel"><div className="panel-head"><span><ListChecks weight="fill" /></span><div><h3>Palavras-chave da vaga</h3><p>Termos que os sistemas de triagem podem procurar</p></div></div><div className="chips">{dynamicKeywords.map(k => <span className={k.found ? 'found' : 'missing'} key={k.name}>{k.found ? <Check /> : <X />}{k.name}</span>)}</div></section>
     {error && <div className="flow-error">{error}</div>}
-    <section className="optimize-card"><div className="magic-badge"><MagicWand weight="fill" /></div><div><span>PRÓXIMO PASSO</span><h2>Transforme essa análise em um currículo mais forte</h2><p>Vamos reescrever e reorganizar seu conteúdo com foco nesta vaga — sem inventar nenhuma informação.</p></div><button className="primary" disabled={busy} onClick={onOptimize}>{busy ? 'Otimizando...' : hasOptimized ? 'Ver currículo otimizado' : 'Gerar currículo otimizado'} <ArrowRight weight="bold" /></button>{hasOptimized && facts.length > 0 && <div className="regenerate-row"><button className="outline" disabled={busy} onClick={onRegenerate}><MagicWand /> Gerar novamente com minhas respostas</button><small>Usa 1 das suas otimizações diárias.</small></div>}</section>
+    <section className="optimize-card"><div className="magic-badge"><MagicWand weight="fill" /></div><div><span>PRÓXIMO PASSO</span><h2>Transforme essa análise em um currículo mais forte</h2><p>Vamos reescrever e reorganizar seu conteúdo com foco nesta vaga — sem inventar nenhuma informação.</p></div><button className="primary" disabled={busy} onClick={onOptimize}>{busy ? 'Otimizando...' : hasOptimized ? 'Ver currículo otimizado' : 'Gerar currículo otimizado'} <ArrowRight weight="bold" /></button>{hasOptimized && facts.length > 0 && <div className="regenerate-row"><button className="outline" disabled={busy} onClick={onRegenerate}><MagicWand /> Gerar novamente com minhas respostas</button><small>Usa 1 das suas otimizações diárias.</small></div>}<div className="cta-row"><button className="outline" onClick={onCoverLetter}><Sparkle /> Escrever carta de apresentação</button></div></section>
   </main>
 }
 
@@ -223,7 +225,7 @@ function LoadedResult({ data }: { data: SavedAnalysis }) {
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível otimizar o currículo.'); setBusy(false) }
   }
   return <ResultScreen analysis={data} hasOptimized={Boolean(data.optimized_resume_text)} facts={facts} onSaveFact={saveFact} onRemoveFact={removeFact}
-    onOptimize={() => generate(false)} onRegenerate={() => generate(true)} onReset={() => navigate('/analisar')} busy={busy} error={error} />
+    onOptimize={() => generate(false)} onRegenerate={() => generate(true)} onCoverLetter={() => navigate(`/analises/${data.analysis_id}/carta`)} onReset={() => navigate('/analisar')} busy={busy} error={error} />
 }
 
 function OptimizedPage() {
@@ -235,7 +237,30 @@ function OptimizedPage() {
   if (status === 'missing' || !data) return <NotFoundAnalysis />
   if (!data.optimized_resume_text) return <Navigate to={`/analises/${data.analysis_id}`} replace />
   const optimized: OptimizedResult = { optimized_resume: data.optimized_resume_text, changes_summary: data.changes_summary, evidence: data.evidence }
-  return <OptimizedScreen optimized={optimized} original={data.resume_text} onBack={() => navigate(`/analises/${data.analysis_id}`)} />
+  return <OptimizedScreen optimized={optimized} original={data.resume_text} onBack={() => navigate(`/analises/${data.analysis_id}`)} onCoverLetter={() => navigate(`/analises/${data.analysis_id}/carta`)} />
+}
+
+function CoverLetterPage() {
+  const { id } = useParams()
+  const { status, data, error } = useSavedAnalysis(id)
+  if (status === 'loading') return <PageStatus text="Carregando..." />
+  if (status === 'error') return <PageStatus text={error} />
+  if (status === 'missing' || !data) return <NotFoundAnalysis />
+  return <LoadedCoverLetter data={data} />
+}
+
+function LoadedCoverLetter({ data }: { data: SavedAnalysis }) {
+  const navigate = useNavigate()
+  const [letter, setLetter] = useState<CoverLetterResult | null>(data.cover_letter ? { cover_letter: data.cover_letter, evidence: data.cover_letter_evidence } : null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const generate = async (tone: CoverLetterTone) => {
+    setBusy(true); setError('')
+    try { setLetter(await generateCoverLetter(data.analysis_id, tone)) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível gerar a carta.') }
+    finally { setBusy(false) }
+  }
+  return <CoverLetterScreen letter={letter} busy={busy} error={error} onGenerate={generate} onBack={() => navigate(`/analises/${data.analysis_id}`)} />
 }
 
 function RequireAuth({ user, ready, children }: { user: User | null; ready: boolean; children: React.ReactNode }) {
@@ -248,7 +273,7 @@ function RequireAuth({ user, ready, children }: { user: User | null; ready: bool
 
 function progressFor(pathname: string) {
   if (pathname === '/analisar') return 1
-  if (/^\/analises\/[^/]+\/otimizado$/.test(pathname)) return 3
+  if (/^\/analises\/[^/]+\/(otimizado|carta)$/.test(pathname)) return 3
   if (/^\/analises\/[^/]+$/.test(pathname)) return 2
   return 0
 }
@@ -285,6 +310,7 @@ export default function App() {
       <Route path="/analises" element={guard(<HistoryPage />)} />
       <Route path="/analises/:id" element={guard(<ResultPage />)} />
       <Route path="/analises/:id/otimizado" element={guard(<OptimizedPage />)} />
+      <Route path="/analises/:id/carta" element={guard(<CoverLetterPage />)} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     <footer><Logo /><span>Currículos mais relevantes. Carreiras mais próximas.</span><small>© 2026 Matchly</small></footer>

@@ -10,6 +10,7 @@ import './score-animation.css'
 import './history.css'
 import './evidence.css'
 import './gaps.css'
+import './letter.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><BrowserRouter><App /></BrowserRouter></StrictMode>,

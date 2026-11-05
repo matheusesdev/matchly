@@ -14,6 +14,8 @@ export type SavedAnalysis = {
   changes_summary: string[]
   evidence: EvidenceItem[]
   user_facts: UserFact[]
+  cover_letter: string | null
+  cover_letter_evidence: EvidenceItem[]
   created_at: string
   filename: string
   resume_text: string
@@ -45,14 +47,14 @@ function client() {
 
 export async function fetchAnalysis(id: string): Promise<SavedAnalysis | null> {
   const { data, error } = await client().from('analyses')
-    .select('id, match_score, missing_keywords, gaps, strengths, job_text, optimized_resume_text, changes_summary, evidence, user_facts, created_at, resumes(original_filename, raw_text)')
+    .select('id, match_score, missing_keywords, gaps, strengths, job_text, optimized_resume_text, changes_summary, evidence, user_facts, cover_letter, cover_letter_evidence, created_at, resumes(original_filename, raw_text)')
     .eq('id', id).maybeSingle()
   if (error) throw new Error('Não foi possível carregar a análise.')
   if (!data) return null
   return {
     analysis_id: data.id, match_score: data.match_score ?? 0, missing_keywords: data.missing_keywords ?? [], gaps: data.gaps ?? [],
     strengths: data.strengths ?? [], job_text: data.job_text, optimized_resume_text: data.optimized_resume_text,
-    changes_summary: data.changes_summary ?? [], evidence: data.evidence ?? [], user_facts: sanitizeFacts(data.user_facts), created_at: data.created_at,
+    changes_summary: data.changes_summary ?? [], evidence: data.evidence ?? [], user_facts: sanitizeFacts(data.user_facts), cover_letter: data.cover_letter ?? null, cover_letter_evidence: data.cover_letter_evidence ?? [], created_at: data.created_at,
     filename: filenameOf(data.resumes as ResumeRef), resume_text: resumeOf(data.resumes as ResumeRef)?.raw_text ?? '',
   }
 }

@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.optimize-resume]
 verify_jwt = true
+
+[functions.generate-cover-letter]
+verify_jwt = true

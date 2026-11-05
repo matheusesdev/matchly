@@ -90,3 +90,46 @@ ${neutralize(jobText)}
 ${neutralize(resumeText)}
 </curriculo>${factsBlock}`
 }
+
+export const COVER_LETTER_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    cover_letter: { type: 'STRING' },
+    evidence: {
+      type: 'ARRAY',
+      items: { type: 'OBJECT', properties: { line: { type: 'STRING' }, source_quote: { type: 'STRING' } }, required: ['line', 'source_quote'] },
+    },
+  },
+  required: ['cover_letter', 'evidence'],
+}
+
+export type CoverLetterTone = 'profissional' | 'proximo'
+export const COVER_LETTER_TONES: CoverLetterTone[] = ['profissional', 'proximo']
+export const isCoverLetterTone = (value: unknown): value is CoverLetterTone => COVER_LETTER_TONES.includes(value as CoverLetterTone)
+
+export function buildCoverLetterPrompt(jobText: string, resumeText: string, factsText: string, tone: CoverLetterTone, feedback?: OptimizationFeedback) {
+  const toneRule = tone === 'proximo'
+    ? 'Tom: próximo e natural, em primeira pessoa, sem gírias nem excesso de formalidade.'
+    : 'Tom: profissional e objetivo, em primeira pessoa, cordial e sem exageros.'
+  const notes: string[] = []
+  if (feedback?.invented?.length) notes.push(`a versão anterior continha números que não existem no currículo nem nos fatos do candidato (${feedback.invented.join(', ')}). Remova-os.`)
+  if (feedback?.lowEvidence) notes.push('a versão anterior tinha afirmações sem citação válida. Cada frase factual precisa de um source_quote copiado LITERALMENTE do currículo ou dos fatos do candidato; se não houver trecho que a sustente, remova a frase.')
+  const retry = notes.length ? `\nATENÇÃO: ${notes.join(' Além disso, ')}\n` : ''
+  const factsBlock = factsText ? `\n\n<fatos_do_candidato>\n${neutralize(factsText)}\n</fatos_do_candidato>` : ''
+  const factsRule = factsText ? 'Os fatos em <fatos_do_candidato> foram informados pelo candidato e podem ser usados como se estivessem no currículo.\n' : ''
+  return `Escreva uma carta de apresentação em português do Brasil para esta vaga, a partir do currículo.
+
+${toneRule}
+Estrutura: saudação ("Prezados," ou similar), 3 parágrafos curtos (interesse na vaga; 2 ou 3 experiências do currículo mais relevantes para a vaga; fechamento com disponibilidade), despedida e o nome do candidato. No máximo 250 palavras. Separe os parágrafos com uma linha em branco.
+Você PODE: relacionar o que o candidato fez com o que a vaga pede e citar o nome da vaga e da empresa se constarem no texto da vaga.
+Você NÃO PODE: inventar experiências, cargos, empresas, datas, números, métricas, ferramentas, idiomas ou resultados que não estejam no currículo ${factsText ? 'ou nos fatos do candidato' : ''}; nem afirmar entusiasmo por detalhes da empresa que não estejam na vaga. Use o nome que consta no início do currículo.
+${factsRule}evidence: liste CADA frase da carta que afirma algo sobre a trajetória do candidato (experiência, habilidade, resultado, formação), como {line, source_quote}. "line" é a frase copiada exatamente como está na carta. "source_quote" é um trecho CONTÍGUO copiado LITERALMENTE, palavra por palavra, do currículo${factsText ? ' ou dos fatos do candidato' : ''}, que sustenta a frase. Nunca parafraseie o source_quote.
+${retry}
+<vaga>
+${neutralize(jobText)}
+</vaga>
+
+<curriculo>
+${neutralize(resumeText)}
+</curriculo>${factsBlock}`
+}
