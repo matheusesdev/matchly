@@ -9,19 +9,22 @@ export function dailyLimit(kind: UsageKind, read: (name: string) => string | und
   return Number.isInteger(configured) && configured > 0 ? configured : defaults[kind]
 }
 
+export type QuotaResult = { ok: boolean; eventId: string | null }
+
 export function isOverQuota(used: number, limit: number) {
   return used >= limit
 }
 
 // deno-lint-ignore no-explicit-any
-export async function consumeQuota(client: any, userId: string, kind: UsageKind, limit: number): Promise<boolean> {
+export async function consumeQuota(client: any, userId: string, kind: UsageKind, limit: number): Promise<QuotaResult> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { count, error } = await client
     .from('usage_events').select('id', { count: 'exact', head: true })
     .eq('user_id', userId).eq('kind', kind).gte('created_at', since)
   if (error) throw error
-  if (isOverQuota(count ?? 0, limit)) return false
-  const { error: insertError } = await client.from('usage_events').insert({ user_id: userId, kind })
+  if (isOverQuota(count ?? 0, limit)) return { ok: false, eventId: null }
+  const { data, error: insertError } = await client.from('usage_events').insert({ user_id: userId, kind }).select('id').single()
   if (insertError) throw insertError
-  return true
+  // O id permite devolver o consumo se a IA falhar por culpa do provedor (ver refund.ts).
+  return { ok: true, eventId: data?.id ?? null }
 }

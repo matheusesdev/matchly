@@ -1,4 +1,5 @@
 import { SYSTEM_INSTRUCTION } from './prompts.ts'
+import { GEMINI_ATTEMPTS_PER_MODEL, retryDelayMs } from './retry.ts'
 
 const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.6-flash'
 const fallbackModel = Deno.env.get('GEMINI_FALLBACK_MODEL') ?? 'gemini-3.5-flash-lite'
@@ -10,7 +11,7 @@ export async function callGemini(prompt: string, schema: unknown, options: { tem
   if (!apiKey) throw new Error('Gemini indisponível')
   let lastError = 'Gemini indisponível'
   for (const candidate of [...new Set([model, fallbackModel])]) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < GEMINI_ATTEMPTS_PER_MODEL; attempt++) {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), timeoutMs)
       try {
@@ -39,7 +40,8 @@ export async function callGemini(prompt: string, schema: unknown, options: { tem
           : error instanceof Error && error.message.startsWith('Gemini ') ? error.message
           : 'Gemini indisponível'
       } finally { clearTimeout(timer) }
-      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 400))
+      const wait = retryDelayMs(attempt)
+      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
     }
   }
   throw new Error(lastError)

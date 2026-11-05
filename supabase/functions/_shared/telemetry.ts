@@ -72,3 +72,8 @@ export async function recordRun(client: any, userId: string, run: Run, requestId
     console.error(JSON.stringify({ request_id: requestId, error: 'ai_run_insert_failed' }))
   }
 }
+
+/** Falhas que não são culpa do usuário (IA fora do ar, resposta cortada ou fora do formato): a cota é devolvida. */
+export function isRefundable(code: string): boolean {
+  return code.startsWith('gemini_') || code === 'invalid_ai_output'
+}
