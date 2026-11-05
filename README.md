@@ -21,11 +21,13 @@ Enviar o mesmo currículo para vagas diferentes reduz a relevância da candidatu
 
 A Matchly transforma esse processo em um fluxo simples:
 
-1. O usuário envia seu currículo em DOCX.
+1. O usuário envia seu currículo em PDF ou DOCX.
 2. Cola a descrição completa da vaga.
 3. Recebe score de aderência, pontos fortes, gaps e palavras-chave ausentes.
-4. Solicita uma versão otimizada para aquela oportunidade.
-5. A IA reorganiza e melhora a escrita usando exclusivamente fatos presentes no original.
+4. Responde, se quiser, "Tenho essa experiência" para os gaps que de fato cobre.
+5. Gera uma versão otimizada e uma carta de apresentação para aquela vaga.
+6. Vê, frase por frase, de onde cada afirmação veio (currículo original ou resposta do próprio usuário) e quais merecem conferência.
+7. Baixa em PDF ou DOCX.
 
 > **Princípio inegociável:** a IA pode melhorar a forma como uma trajetória é apresentada, mas nunca inventar uma trajetória.
 
@@ -45,49 +47,68 @@ A landing page possui motion orientado ao produto, revelações por scroll, micr
 
 ### Implementadas
 
-- Landing page comercial responsiva.
-- Login por e-mail com Supabase Auth para usuários convidados.
-- Lista de acesso do MVP validada no backend antes de qualquer chamada à IA.
-- Upload de DOCX com limite de 5 MB.
-- Extração de texto no backend usando Mammoth.
-- Análise de aderência com Gemini.
-- Score de compatibilidade, pontos fortes, gaps e palavras-chave.
-- Geração de currículo otimizado para uma vaga específica.
-- Persistência de currículos e análises no Postgres.
+#### Fluxo principal
+
+- Landing page comercial responsiva (sem promessas que o produto não mede).
+- Login por e-mail para usuários convidados; lista de acesso validada no backend antes de qualquer chamada à IA.
+- Upload de **PDF ou DOCX** (até 5 MB), com validação do tipo real do arquivo e extração de texto no servidor.
+- Análise de aderência com Gemini: score com rubrica, pontos fortes, gaps e palavras-chave.
+- **Perguntas para fechar gaps:** o usuário descreve experiências que a vaga pede e que o currículo não mostra; as respostas entram como fatos informados por ele.
+- **Currículo otimizado** e **carta de apresentação** (tom profissional ou próximo) para a vaga.
+- **Fidelidade verificável:** a IA cita o trecho literal que sustenta cada afirmação; o servidor confere a citação e reprova números novos. A tela mostra a origem de cada frase, o resumo "X de Y com origem comprovada" e uma aba com o original.
+- Exportação em **PDF** e **DOCX** (texto selecionável, uma coluna, segura para ATS) e cópia da carta.
+- **Histórico** de análises com URLs próprias (`/analises/:id`), reabertura e exclusão.
+
+#### Proteção e conformidade
+
+- Cota diária por usuário (análises, otimizações e cartas) e defesa contra prompt injection.
 - Isolamento de dados por usuário com Row Level Security.
+- Termos de Uso e Política de Privacidade (rascunho até revisão jurídica), consentimento no login e aviso claro sobre o envio ao Gemini.
+- **Minha conta:** baixar todos os dados (JSON) e excluir a conta com confirmação, apagando tudo em cascata.
+
+#### Qualidade e operação
+
 - Retry progressivo e fallback de modelo durante indisponibilidades da IA.
-- Estados de carregamento e erros acionáveis.
+- Testes unitários, testes de ponta a ponta com acessibilidade (axe) e CI no GitHub.
+- Observabilidade básica: registro técnico de cada chamada de IA e `npm run metrics`.
 
 ### Roadmap
 
-- Exportação real da versão otimizada para DOCX.
-- Histórico de análises e comparação original × otimizado.
-- Recuperação de senha e autenticação social.
-- Limites de uso, planos e cobrança recorrente.
-- Testes automatizados de integração e ponta a ponta.
-- Observabilidade e métricas de produto.
+- Recuperação de senha e login social (dependem de provedor de e-mail e configuração do Google).
+- Planos, cobrança e Pix.
+- Registro de aceite dos termos (data e versão) na abertura pública.
+- Prazo de retenção de dados e exclusão automática de contas inativas.
+- Rastreador de candidaturas, extensão de navegador e otimização de LinkedIn.
 
 ## Arquitetura
 
 ```mermaid
 flowchart LR
-    U[Usuário] -->|DOCX + vaga| W[React + Vite]
+    U[Usuário] -->|PDF/DOCX + vaga| W[React + Vite]
     W -->|JWT| A[Supabase Auth]
-    W -->|FormData autenticado| F1[Edge Function: analyze-resume]
-    F1 -->|Extrai texto| M[Mammoth]
-    F1 -->|Prompt anti-alucinação| G[Gemini API]
-    F1 -->|Currículo + análise| DB[(Postgres + RLS)]
-    W -->|analysis_id + JWT| F2[Edge Function: optimize-resume]
-    F2 --> DB
-    F2 -->|Reescrita controlada| G
-    DB -->|Dados do proprietário| W
+    W -->|FormData autenticado| F1[analyze-resume]
+    F1 -->|Extrai texto| P[Mammoth / unpdf]
+    F1 -->|Prompt + schema| G[Gemini API]
+    F1 --> DB[(Postgres + RLS)]
+    W -->|analysis_id + JWT| F2[optimize-resume]
+    W -->|analysis_id + tom| F3[generate-cover-letter]
+    F2 & F3 -->|Fatos do candidato lidos do banco| G
+    F2 & F3 -->|Citações conferidas contra o original| V{Verificação de origem}
+    V --> DB
+    W -->|confirmação por e-mail| F4[delete-account]
+    F4 -->|service role, cascata| DB
+    F1 & F2 & F3 -.->|ai_runs sem conteúdo| DB
+    DB -->|Somente dados do dono| W
 ```
 
 ### Decisões técnicas
 
 - **Nenhuma chave privada no cliente:** `GEMINI_API_KEY` existe apenas nas Edge Functions.
 - **Autorização em profundidade:** as funções validam explicitamente o access token e o banco aplica RLS.
-- **IA com saída estruturada:** o Gemini retorna JSON para reduzir ambiguidade.
+- **IA com saída estruturada:** o Gemini retorna JSON com `responseSchema`, temperatura baixa e rubrica de score; o servidor valida e normaliza a resposta.
+- **Verdade verificável, não só prometida:** cada afirmação do currículo e da carta precisa citar um trecho literal do original (ou da resposta do usuário). O servidor confere a citação, reprova números novos e tenta de novo uma vez; o que não tem prova é marcado na tela.
+- **Dados não confiáveis no prompt:** vaga, currículo e respostas entram dentro de tags neutralizadas e o prompt de sistema manda ignorar instruções contidas neles.
+- **Lógica pura e testável:** validação, verificação de origem, cotas e telemetria ficam em `supabase/functions/_shared`, sem APIs do Deno, e são testadas com Vitest.
 - **Resiliência:** erros `429`, `500`, `502`, `503` e `504` recebem retry exponencial e fallback.
 - **Falha segura:** sem backend configurado, o fluxo funcional permanece bloqueado.
 
@@ -104,7 +125,12 @@ flowchart LR
 | Backend | Supabase Edge Functions | Parsing, validação e IA |
 | IA | Gemini 3.6 Flash | Análise e otimização |
 | Fallback | Gemini 3.5 Flash-Lite | Continuidade em picos de demanda |
-| Parsing | Mammoth | Extração de DOCX |
+| Parsing | Mammoth e unpdf | Extração de DOCX e PDF |
+| Exportação | docx e jsPDF | Geração de DOCX e PDF no navegador |
+| Rotas | React Router | URLs próprias para análise, otimizado, carta e conta |
+| Testes | Vitest, Playwright e axe | Unitários, ponta a ponta e acessibilidade |
+| CI | GitHub Actions | Tipos, testes, build, `deno check` e e2e em cada PR |
+| Hospedagem | Vercel (front) e Supabase (banco e funções) | Publicação |
 | QA visual | Playwright | Screenshots desktop e mobile |
 
 ## Executando localmente
@@ -163,15 +189,22 @@ npx supabase secrets set \
   GEMINI_API_KEY=SUA_CHAVE \
   GEMINI_MODEL=gemini-3.6-flash \
   GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite \
-  MVP_ALLOWED_EMAILS=voce@email.com,outro-convidado@email.com
+  MVP_ALLOWED_EMAILS=voce@email.com,outro-convidado@email.com \
+  ALLOWED_ORIGINS=https://seu-site.vercel.app
 ```
+
+`ALLOWED_ORIGINS` (origens do front separadas por vírgula) é obrigatório em produção: sem ela, as funções só aceitam `localhost`. Opcionalmente, ajuste as cotas diárias com `QUOTA_ANALYZE_PER_DAY` (padrão 5), `QUOTA_OPTIMIZE_PER_DAY` (10) e `QUOTA_COVER_LETTER_PER_DAY` (10).
 
 Publique as funções:
 
 ```bash
 npx supabase functions deploy analyze-resume --no-verify-jwt
 npx supabase functions deploy optimize-resume --no-verify-jwt
+npx supabase functions deploy generate-cover-letter --no-verify-jwt
+npx supabase functions deploy delete-account --no-verify-jwt
 ```
+
+**Ordem de publicação:** migrations primeiro (`db push`), depois as funções, e por último o front. Uma função nova pode depender de coluna ou tabela nova, e o front pode consultar uma tabela que ainda não existe.
 
 O gateway não valida o JWT porque as funções fazem a validação explícita com `auth.getUser(accessToken)`. Requisições sem sessão válida continuam sendo rejeitadas. A variável `MVP_ALLOWED_EMAILS` é obrigatória e aceita e-mails separados por vírgula; se estiver ausente ou vazia, as funções falham de forma segura sem chamar o Gemini.
 
@@ -179,10 +212,12 @@ Enquanto o MVP estiver fechado, desative também **Allow new users to sign up** 
 
 ## Modelo de dados
 
-- **`resumes`:** nome do arquivo, texto extraído, proprietário e criação.
-- **`analyses`:** vaga, score, palavras-chave, gaps, pontos fortes, texto otimizado e alterações.
+- **`resumes`:** nome do arquivo, texto extraído, hash do conteúdo (reaproveita o mesmo currículo), proprietário e criação.
+- **`analyses`:** vaga, score, palavras-chave, gaps, pontos fortes, texto otimizado, origem das frases (`evidence`), respostas do candidato (`user_facts`), carta e sua origem.
+- **`usage_events`:** uma linha por uso, para aplicar a cota diária.
+- **`ai_runs`:** registro técnico de cada chamada de IA (resultado, tentativas, fidelidade, duração), sem conteúdo pessoal.
 
-As duas tabelas possuem RLS. Um usuário autenticado acessa somente registros cujo `user_id` corresponde ao próprio ID.
+Todas as tabelas possuem RLS. Um usuário autenticado acessa somente registros cujo `user_id` corresponde ao próprio ID, e todas apagam em cascata com a conta.
 
 ## Segurança e privacidade
 
@@ -190,12 +225,14 @@ As duas tabelas possuem RLS. Um usuário autenticado acessa somente registros cu
 - A chave Gemini nunca é enviada ao navegador.
 - Toda operação de IA exige uma sessão válida e um e-mail presente na lista de convidados do backend.
 - Currículos são processados no backend.
-- Uploads aceitam somente DOCX de até 5 MB.
-- Descrições de vaga possuem limite de 8.000 caracteres.
-- Exclusões propagam com `on delete cascade`.
-- Prompts proíbem invenção de cargos, datas, empresas, métricas, habilidades e credenciais.
+- Uploads aceitam somente PDF ou DOCX de até 5 MB, conferidos pelos primeiros bytes do arquivo (não só pela extensão).
+- Descrições de vaga possuem limite de 8.000 caracteres e currículos de 20.000.
+- CORS restrito às origens configuradas em `ALLOWED_ORIGINS`.
+- Cota diária por usuário para proteger o custo da IA.
+- Exclusão de conta pela própria pessoa, com confirmação por e-mail, apagando tudo em cascata.
+- Prompts proíbem invenção de cargos, datas, empresas, métricas, habilidades e credenciais, e o servidor reprova números que não existam no original.
 
-> Para produção, recomenda-se complementar com rate limiting, política de retenção, observabilidade, termos de uso e política de privacidade revisados juridicamente.
+> **Antes de abrir ao público:** revisão jurídica dos Termos e da Política de Privacidade (depois, `VITE_LEGAL_REVIEWED=true`), identificação do responsável em `VITE_LEGAL_CONTROLLER_NAME` e `VITE_LEGAL_CONTACT_EMAIL`, e confirmação do plano da API do Gemini quanto ao uso dos dados enviados.
 
 ## Qualidade
 
@@ -249,16 +286,21 @@ O Playwright gera screenshots em `artifacts/linkedin`. As capturas usam `prefers
 
 ```text
 matchly/
+├── .github/workflows/         # CI (tipos, testes, deno check, e2e)
 ├── artifacts/linkedin/        # Screenshots e texto de divulgação
-├── scripts/                   # Automação de QA visual
+├── e2e/                       # Testes de ponta a ponta e acessibilidade (Playwright + axe)
+├── scripts/                   # Métricas e automação de QA visual
 ├── src/
-│   ├── components/            # Landing e autenticação
-│   ├── lib/                   # Supabase e API tipada
-│   ├── App.tsx                # Fluxo principal
+│   ├── components/            # Landing, login, histórico, otimizado, carta, conta e páginas legais
+│   ├── lib/                   # Supabase, API tipada, histórico, exportação PDF/DOCX
+│   ├── legal/                 # Identificação do responsável pelos textos legais
+│   ├── App.tsx                # Rotas e telas do fluxo principal
 │   └── *.css                  # Design, motion e responsividade
 ├── supabase/
-│   ├── functions/             # Edge Functions e módulos compartilhados
-│   └── migrations/            # Schema, índices e RLS
+│   ├── functions/             # Edge Functions e _shared (lógica pura testável)
+│   ├── migrations/            # Schema, índices e RLS
+│   └── metrics.sql            # Consultas de observabilidade
+├── tests/                     # Testes unitários (Vitest)
 ├── .env.example
 ├── AGENTS.md
 └── package.json
@@ -274,7 +316,7 @@ matchly/
 
 ## Status
 
-MVP funcional. O fluxo central — autenticar, enviar DOCX, analisar aderência e gerar uma versão otimizada — está implementado. Exportação DOCX, pagamentos e histórico completo permanecem no roadmap.
+MVP fechado para convidados, com o fluxo completo implementado: enviar PDF ou DOCX, analisar aderência, fechar gaps, gerar currículo e carta com origem verificável, baixar em PDF/DOCX e gerenciar os próprios dados. Pagamentos e recuperação de senha seguem no roadmap, e a abertura pública depende da revisão jurídica e das decisões listadas acima.
 
 ---
 
