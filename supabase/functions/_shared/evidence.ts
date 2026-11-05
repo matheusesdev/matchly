@@ -38,6 +38,60 @@ export function claimLines(optimizedText: string): string[] {
     .filter((line) => line.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length >= 4)
 }
 
+const wordCount = (line: string) => line.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length
+
+/** Separadores de uma linha de cargo/empresa/datas (ex.: "Analista · Acme · 2021 – Atual"). */
+const CLAIM_SPLIT = /\s*[·|•]\s*|\s+[–—]\s+/
+/** Separadores de uma lista de habilidades ou idiomas (ex.: "Excel · SAP, Fluxo de caixa"). */
+const TERM_SPLIT = /\s*[·|•,;/]\s*|\s+[–—-]\s+/
+
+/**
+ * Linhas de conteúdo do currículo reescrito: tudo depois da primeira seção, exceto títulos.
+ * (A primeira linha é sempre o nome, mesmo em maiúsculas.) Inclui linhas curtas, como habilidades.
+ */
+export function contentLines(optimizedText: string): string[] {
+  const lines = optimizedText.replace(/\r\n/g, '\n').split('\n').map((line) => line.trim()).filter(Boolean)
+  const offset = lines.slice(1).findIndex(isHeadingLine)
+  if (offset < 0) return []
+  return lines.slice(offset + 2).filter((line) => !isHeadingLine(line)).map(stripBullet).filter((line) => normalizeForMatch(line).length > 0)
+}
+
+/** A linha existe de fato nas fontes: idêntica a um trecho delas, ou formada só por termos que existem nelas. */
+function supportedWithoutQuote(line: string, splitter: RegExp, sources: Locators): EvidenceSource | null {
+  const whole = sources.quote(line)
+  if (whole) return whole
+  const terms = line.split(splitter).map((term) => term.trim()).filter((term) => normalizeForMatch(term).length >= 2)
+  if (!terms.length) return null
+  const origins = terms.map((term) => sources.term(term))
+  if (!origins.every(Boolean)) return null
+  return origins.includes('candidato') ? 'candidato' : 'curriculo'
+}
+
+type Locators = { quote: (quote: string) => EvidenceSource | null; term: (term: string) => EvidenceSource | null }
+
+/** Localiza citações (mínimo de 6 caracteres) e termos curtos (palavra inteira, ex.: "SAP") nas fontes. */
+function makeLocators(original: string, extraSource: string): Locators {
+  const padded = (text: string) => ` ${normalizeForMatch(text)} `
+  const normalizedOriginal = normalizeForMatch(original)
+  const normalizedExtra = normalizeForMatch(extraSource)
+  const paddedOriginal = padded(original)
+  const paddedExtra = padded(extraSource)
+  return {
+    quote: (quote) => {
+      const normalized = normalizeForMatch(quote)
+      if (normalized.length < MIN_QUOTE_LENGTH) return null
+      if (normalizedOriginal.includes(normalized)) return 'curriculo'
+      return normalizedExtra && normalizedExtra.includes(normalized) ? 'candidato' : null
+    },
+    term: (term) => {
+      const needle = ` ${normalizeForMatch(term)} `
+      if (needle.length < 4) return null
+      if (paddedOriginal.includes(needle)) return 'curriculo'
+      return paddedExtra.includes(needle) && normalizedExtra ? 'candidato' : null
+    },
+  }
+}
+
 /** Diz de qual fonte (currículo ou respostas do candidato) uma citação vem; null se não existir literalmente. */
 function makeLocator(original: string, extraSource: string) {
   const normalizedOriginal = normalizeForMatch(original)
@@ -76,19 +130,29 @@ export function verifyLetter(letter: string, raw: RawEvidence[], original: strin
 
 /** `extraSource` = fatos informados pelo candidato: também valem como prova, mas ficam identificados. */
 export function verifyEvidence(original: string, optimizedText: string, raw: RawEvidence[], extraSource = ''): Fidelity {
-  const locate = makeLocator(original, extraSource)
+  const sources = makeLocators(original, extraSource)
+  const locate = sources.quote
   const byLine = new Map<string, string[]>()
   for (const entry of raw) {
     const key = normalizeForMatch(stripBullet(entry.line ?? ''))
     if (!key) continue
     byLine.set(key, [...(byLine.get(key) ?? []), String(entry.source_quote ?? '')])
   }
-  const items: EvidenceItem[] = claimLines(optimizedText).map((line) => {
+  const items: EvidenceItem[] = []
+  for (const line of contentLines(optimizedText)) {
+    const isClaim = wordCount(line) >= 4
     const quotes = byLine.get(normalizeForMatch(line)) ?? []
     const found = quotes.map((quote) => ({ quote, source: locate(quote) })).find((candidate) => candidate.source)
-    if (!found || !found.source) return { line, quote: '', verified: false }
-    return { line, quote: found.quote.replace(/\s+/g, ' ').trim().slice(0, MAX_QUOTE_LENGTH), verified: true, source: found.source }
-  })
+    if (found && found.source) {
+      items.push({ line, quote: found.quote.replace(/\s+/g, ' ').trim().slice(0, MAX_QUOTE_LENGTH), verified: true, source: found.source })
+      continue
+    }
+    // Sem citação válida: a linha ainda é aceita se for cópia fiel do original (ex.: cargo, empresa e datas) ou se cada
+    // termo dela existir no original (ex.: lista de habilidades). Habilidade inventada não passa e é sinalizada.
+    const origin = supportedWithoutQuote(line, isClaim ? CLAIM_SPLIT : TERM_SPLIT, sources)
+    if (origin) { if (isClaim) items.push({ line, quote: line.slice(0, MAX_QUOTE_LENGTH), verified: true, source: origin }); continue }
+    items.push({ line, quote: '', verified: false })
+  }
   const verified = items.filter((item) => item.verified).length
   return { items, total: items.length, verified, ratio: items.length ? verified / items.length : 1 }
 }

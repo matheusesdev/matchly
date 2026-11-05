@@ -10,6 +10,7 @@ export const ANALYSIS_SCHEMA = {
   type: 'OBJECT',
   properties: {
     match_score: { type: 'INTEGER' },
+    job_title: { type: 'STRING' },
     strengths: {
       type: 'ARRAY',
       items: { type: 'OBJECT', properties: { text: { type: 'STRING' }, resume_quote: { type: 'STRING' } }, required: ['text', 'resume_quote'] },
@@ -21,7 +22,7 @@ export const ANALYSIS_SCHEMA = {
       items: { type: 'OBJECT', properties: { area: { type: 'STRING' }, descricao: { type: 'STRING' }, job_quote: { type: 'STRING' } }, required: ['area', 'descricao', 'job_quote'] },
     },
   },
-  required: ['match_score', 'strengths', 'matched_keywords', 'missing_keywords', 'gaps'],
+  required: ['match_score', 'job_title', 'strengths', 'matched_keywords', 'missing_keywords', 'gaps'],
 }
 
 export const OPTIMIZATION_SCHEMA = {
@@ -54,6 +55,7 @@ Campos:
 - strengths: até 6 itens {text, resume_quote}. "text" é um ponto forte em uma frase curta. "resume_quote" é um trecho CONTÍGUO copiado LITERALMENTE, palavra por palavra, do currículo que comprova o ponto. Não escreva em "text" números, anos ou quantidades que não estejam no currículo; copie-os exatamente.
 - matched_keywords: até 10 termos CURTOS (1 a 3 palavras, como "Excel avançado" ou "SAP") que a vaga pede e que aparecem no currículo.
 - missing_keywords: até 10 termos CURTOS que a vaga pede e que NÃO aparecem no currículo.
+- job_title: o cargo da vaga em poucas palavras, como aparece no texto da vaga (ex.: "Analista Financeiro Sênior"). Não use títulos de seção como "Sobre a vaga".
 - gaps: até 5 itens {area, descricao, job_quote}. "job_quote" é um trecho CONTÍGUO copiado LITERALMENTE da vaga que mostra o requisito. Só liste requisitos que a vaga de fato exija, nunca suposições. Se o currículo atende ou supera um requisito (por exemplo, tempo de experiência igual ou maior que o mínimo pedido), não liste como lacuna.
 
 <vaga>
@@ -78,13 +80,18 @@ export function buildOptimizationPrompt(jobText: string, resumeText: string, fee
 ${neutralize(factsText)}
 </fatos_do_candidato>` : ''
   const retry = notes.length ? `\nATENÇÃO: ${notes.join(' Além disso, ')}\n` : ''
-  return `Reescreva o currículo em texto simples, focado nesta vaga.
+  return `Reescreva o currículo em texto simples, claramente adaptado a esta vaga, usando somente fatos do original.
 
-Você PODE: reordenar seções e experiências, reescrever frases com verbos de ação, dar destaque a fatos relevantes e usar a terminologia da vaga quando descrever algo que o candidato de fato fez.
+Faça OBRIGATORIAMENTE estas adaptações:
+1. RESUMO: escreva 2 ou 3 frases que destaquem, nesta ordem, o que o candidato já tem e a vaga mais pede. Use a terminologia da vaga quando descrever algo que o candidato de fato fez. Se o original não tiver resumo, crie um apenas com fatos existentes.
+2. Dentro de cada experiência, coloque primeiro os itens mais relevantes para a vaga e reescreva-os com verbos de ação, sem mudar fatos nem números.
+3. HABILIDADES: escreva em UMA única linha separada por " · ", com as que a vaga pede primeiro. Faça o mesmo em IDIOMAS.
+4. Mantenha nome, contato, cargos, empresas e datas exatamente como no original.
+Você PODE também reordenar seções e dar destaque a fatos relevantes.
 Você NÃO PODE: adicionar empresas, cargos, datas, números, métricas, ferramentas, idiomas, certificações ou resultados que não estejam no currículo original. Se a vaga exige algo ausente, simplesmente não mencione.
 Formato: seções em MAIÚSCULAS em linha própria (ex.: RESUMO, EXPERIÊNCIA PROFISSIONAL, FORMAÇÃO, HABILIDADES), itens de lista iniciados por "- ". Preserve os dados de contato exatamente como estão.
 A primeira linha do texto deve ser o nome do candidato, seguida dos dados de contato, antes da primeira seção.
-changes_summary: até 5 frases curtas descrevendo o que mudou.
+changes_summary: de 3 a 5 frases curtas descrevendo mudanças CONCRETAS que você fez (ex.: "Resumo reescrito com foco em conciliação e fechamento"). Nunca escreva que algo foi mantido inalterado.
 ${factsRule}evidence: para CADA linha de conteúdo do currículo reescrito (itens de lista e parágrafos dentro das seções, exceto títulos e contato), devolva {line, source_quote}. "line" é a linha exatamente como aparece em optimized_resume, sem o "- " inicial. "source_quote" é um trecho CONTÍGUO copiado LITERALMENTE, palavra por palavra, do currículo original, que sustenta essa linha. Nunca parafraseie nem traduza o source_quote.
 ${retry}
 <vaga>
@@ -114,8 +121,8 @@ export const isCoverLetterTone = (value: unknown): value is CoverLetterTone => C
 
 export function buildCoverLetterPrompt(jobText: string, resumeText: string, factsText: string, tone: CoverLetterTone, feedback?: OptimizationFeedback) {
   const toneRule = tone === 'proximo'
-    ? 'Tom: próximo e natural, em primeira pessoa, sem gírias nem excesso de formalidade.'
-    : 'Tom: profissional e objetivo, em primeira pessoa, cordial e sem exageros.'
+    ? 'Tom PRÓXIMO: conversa natural em primeira pessoa, frases curtas e diretas, sem jargão. Saudação "Olá," e despedida "Abraço," (ou similar), seguida do nome.'
+    : 'Tom PROFISSIONAL: formal e objetivo, frases completas, cordial e sem exageros. Saudação "Prezados," e despedida "Atenciosamente,", seguida do nome.'
   const notes: string[] = []
   if (feedback?.invented?.length) notes.push(`a versão anterior continha números que não existem no currículo nem nos fatos do candidato (${feedback.invented.join(', ')}). Remova-os.`)
   if (feedback?.lowEvidence) notes.push('a versão anterior tinha afirmações sem citação válida. Cada frase factual precisa de um source_quote copiado LITERALMENTE do currículo ou dos fatos do candidato; se não houver trecho que a sustente, remova a frase.')
@@ -125,7 +132,10 @@ export function buildCoverLetterPrompt(jobText: string, resumeText: string, fact
   return `Escreva uma carta de apresentação em português do Brasil para esta vaga, a partir do currículo.
 
 ${toneRule}
-Estrutura: saudação ("Prezados," ou similar), 3 parágrafos curtos (interesse na vaga; 2 ou 3 experiências do currículo mais relevantes para a vaga; fechamento com disponibilidade), despedida e o nome do candidato. No máximo 250 palavras. Separe os parágrafos com uma linha em branco.
+Estrutura: saudação, 3 parágrafos, despedida e o nome do candidato. Entre 150 e 220 palavras. Separe os parágrafos com uma linha em branco.
+- Parágrafo 1: interesse na vaga (cite o cargo e a empresa se constarem na vaga) e uma frase que resuma o perfil do candidato.
+- Parágrafo 2: relacione explicitamente 2 ou 3 requisitos da vaga a experiências ESPECÍFICAS do currículo, usando os termos da vaga (por exemplo: "A vaga pede X; na empresa Y eu fiz Z"). Priorize os requisitos que o candidato de fato atende e não comente os que não atende.
+- Parágrafo 3: fechamento com disponibilidade para conversar. Não copie frases inteiras do currículo; reescreva com suas palavras, mantendo fatos e números exatos.
 Você PODE: relacionar o que o candidato fez com o que a vaga pede e citar o nome da vaga e da empresa se constarem no texto da vaga.
 Você NÃO PODE: inventar experiências, cargos, empresas, datas, números, métricas, ferramentas, idiomas ou resultados que não estejam no currículo ${factsText ? 'ou nos fatos do candidato' : ''}; nem afirmar entusiasmo por detalhes da empresa que não estejam na vaga. Use o nome que consta no início do currículo.
 ${factsRule}evidence: liste CADA frase da carta que afirma algo sobre a trajetória do candidato (experiência, habilidade, resultado, formação), como {line, source_quote}. "line" é a frase copiada exatamente como está na carta. "source_quote" é um trecho CONTÍGUO copiado LITERALMENTE, palavra por palavra, do currículo${factsText ? ' ou dos fatos do candidato' : ''}, que sustenta a frase. Nunca parafraseie o source_quote.

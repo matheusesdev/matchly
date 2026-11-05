@@ -19,3 +19,15 @@
 /* No celular a regra original .paper-head .outline{font-size:0} escondia o texto dos botões de download/cópia. */
 .paper-head .download-actions .outline{font-size:12px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 12px}
 .paper-head .download-actions .outline svg{width:16px;height:16px;flex:none}
+/* Tipografia uniforme no currículo com origem: no celular as frases clicáveis ficavam maiores que o restante. */
+.evidence-paper{font-size:14px;line-height:1.55}
+.evidence-paper .ev-plain,.evidence-paper .ev-line button{font-size:inherit;line-height:inherit}
+.evidence-paper .ev-heading{font-size:12px}
+.evidence-paper .ev-name{font-size:22px}
+/* Rodapé e alvos de toque (mínimo recomendado: 44 px nos links soltos e 36-40 px nas ações secundárias). */
+.footer-legal{gap:0 8px}
+.footer-legal a{display:inline-flex;align-items:center;min-height:44px;padding:0 6px;font-size:13px;text-decoration:none;opacity:.85}
+.footer-legal a:hover{text-decoration:underline}
+.textarea-wrap .example{min-height:36px;padding:0 12px}
+.gap-link{min-height:40px}
+.privacy a{display:inline-block;padding:6px 2px}

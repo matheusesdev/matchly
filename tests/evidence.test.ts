@@ -117,3 +117,66 @@ describe('verifyEvidence com fatos do candidato', () => {
     expect(result.items[0].verified).toBe(false)
   })
 })
+
+import { contentLines } from '../supabase/functions/_shared/evidence'
+
+describe('linhas copiadas do original e listas de habilidades (caso real do teste em produção)', () => {
+  const resume = `CAROLINA MENDES RIBEIRO
+Analista Financeiro Pleno · Comercial Aurora Ltda. (varejo) · 03/2021 – Atual
+Responsável pela conciliação bancária diária de 150 contas.
+Excel avançado · SAP Business One · Conciliação bancária · Fluxo de caixa
+Português (nativo) · Inglês intermediário (leitura técnica)`
+  const optimized = `CAROLINA MENDES RIBEIRO
+carolina.exemplo@email.com | (11) 90000-0000
+
+EXPERIÊNCIA PROFISSIONAL
+Analista Financeiro Pleno · Comercial Aurora Ltda. (varejo) · 03/2021 – Atual
+- Responsável pela conciliação bancária diária de 150 contas.
+
+HABILIDADES
+Excel avançado · SAP Business One · Fluxo de caixa
+
+IDIOMAS
+Português (nativo) · Inglês intermediário (leitura técnica)`
+
+  it('cabeçalho de cargo e empresa idêntico ao original é aceito sem citação (antes virava falso alarme amarelo)', () => {
+    const result = verifyEvidence(resume, optimized, [])
+    const header = result.items.find((item) => item.line.startsWith('Analista Financeiro Pleno'))
+    expect(header).toMatchObject({ verified: true, source: 'curriculo' })
+    expect(result.items.filter((item) => !item.verified)).toEqual([])
+  })
+
+  it('lista de habilidades formada só por termos do original é aceita, sem alarme', () => {
+    const result = verifyEvidence(resume, optimized, [])
+    const skills = result.items.find((item) => item.line.startsWith('Excel avançado'))
+    expect(skills).toMatchObject({ verified: true, source: 'curriculo' })
+  })
+
+  it('habilidade inventada na lista é sinalizada', () => {
+    const withInvented = optimized.replace('Excel avançado · SAP Business One · Fluxo de caixa', 'Excel avançado · Power BI · Fluxo de caixa')
+    const result = verifyEvidence(resume, withInvented, [])
+    expect(result.items.filter((item) => !item.verified).map((item) => item.line)).toEqual(['Excel avançado · Power BI · Fluxo de caixa'])
+  })
+
+  it('habilidade que o usuário informou nas respostas é aceita e marcada como do candidato', () => {
+    const withFact = optimized.replace('Excel avançado · SAP Business One · Fluxo de caixa', 'Excel avançado · Power BI · Fluxo de caixa')
+    const result = verifyEvidence(resume, withFact, [], 'Ferramentas de BI: Montei dashboards mensais em Power BI para a diretoria')
+    expect(result.items.filter((item) => !item.verified)).toEqual([])
+  })
+
+  it('termo curto casa por palavra inteira (SAP não casa com "ensaporado")', () => {
+    const text = 'ANA\nHABILIDADES\nSAP · Excel'
+    expect(verifyEvidence('Ana. Experiência com ensaporado e Excel', text, []).items.map((item) => item.verified)).toEqual([false])
+    expect(verifyEvidence('Ana. Experiência com SAP e Excel', text, []).items).toEqual([])
+  })
+
+  it('frase inventada que não é cópia do original continua exigindo citação', () => {
+    const text = 'ANA\nEXPERIÊNCIA\n- Liderei uma equipe de vinte pessoas na área fiscal.'
+    expect(verifyEvidence(resume, text, []).items[0]).toMatchObject({ verified: false })
+  })
+
+  it('contentLines inclui linhas curtas, ignora o nome e os títulos', () => {
+    expect(contentLines('ANA SOUZA\ncontato\nRESUMO\nTexto aqui\n- Excel\nHABILIDADES\nSAP · Excel')).toEqual(['Texto aqui', 'Excel', 'SAP · Excel'])
+    expect(contentLines('sem seções')).toEqual([])
+  })
+})

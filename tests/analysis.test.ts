@@ -103,3 +103,14 @@ describe('prompt e schema da análise', () => {
     expect(ANALYSIS_SCHEMA.required).toEqual(expect.arrayContaining(['strengths', 'gaps', 'matched_keywords', 'missing_keywords']))
   })
 })
+
+describe('cargo da vaga (job_title)', () => {
+  it('mantém o cargo que aparece no texto da vaga', () => {
+    const result = verifyAnalysis(draft({ job_title: 'Analista Financeiro Sênior' }), resume, job)
+    expect(result.analysis.job_title).toBe('Analista Financeiro Sênior')
+  })
+  it('descarta cargo inventado (não está no texto da vaga) para o front usar o título derivado', () => {
+    expect(verifyAnalysis(draft({ job_title: 'Diretor de Operações' }), resume, job).analysis.job_title).toBeNull()
+    expect(verifyAnalysis(draft({ job_title: '' }), resume, job).analysis.job_title).toBeNull()
+  })
+})

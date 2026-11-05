@@ -50,7 +50,7 @@ Deno.serve(async (request) => {
     if (!(await consumeQuota(client, userId, 'analyze', dailyLimit('analyze', (n) => Deno.env.get(n))))) { await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'quota_exceeded', startedAt }), id); return json(request, { error: 'Você atingiu o limite diário de análises. Tente novamente amanhã.' }, 429, id) }
     attempts = 1
     // As citações da IA são conferidas contra o currículo e a vaga; o que não tem prova (ou tem número errado) é descartado.
-    const { analysis, stats } = verifyAnalysis(parseAnalysisDraft(await callGemini(buildAnalysisPrompt(jobText, resumeText), ANALYSIS_SCHEMA)), resumeText, jobText)
+    const { analysis, stats } = verifyAnalysis(parseAnalysisDraft(await callGemini(buildAnalysisPrompt(jobText, resumeText), ANALYSIS_SCHEMA, { temperature: 0 })), resumeText, jobText)
     const contentHash = await sha256Hex(resumeText)
     const { data: existing } = await client.from('resumes').select('id').eq('user_id', userId).eq('content_hash', contentHash).limit(1).maybeSingle()
     let resumeId: string | undefined = existing?.id
