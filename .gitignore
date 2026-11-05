@@ -6,3 +6,9 @@ dist
 .DS_Store
 supabase/.temp/
 .vercel
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+deno.lock
