@@ -141,7 +141,8 @@ function ResultScreen({ analysis, hasOptimized, facts, onSaveFact, onRemoveFact,
   const score = analysis.match_score
   const strengths = analysis.strengths
   const gaps = analysis.gaps
-  const dynamicKeywords = [...strengths.slice(0, 5).map(name => ({ name, found: true })), ...analysis.missing_keywords.map(name => ({ name, found: false }))]
+  // Só termos curtos verificados no servidor. Análises antigas não têm os "encontrados"; nelas mostramos apenas os ausentes.
+  const dynamicKeywords = [...(analysis.matched_keywords ?? []).map(name => ({ name, found: true })), ...analysis.missing_keywords.map(name => ({ name, found: false }))]
   return <main className="result-wrap">
     <div className="result-title"><div><span className="eyebrow"><Sparkle weight="fill" /> Análise concluída</span><h1>{score >= 75 ? 'Você está no caminho certo.' : score >= 50 ? 'Há um bom caminho, com ajustes.' : 'Vale reforçar alguns pontos.'}</h1><p>Veja o que já combina com a vaga e o que ainda não aparece no seu currículo.</p></div><button className="outline" onClick={onReset}><FileArrowUp /> Trocar arquivos</button></div>
     <section className="score-card">

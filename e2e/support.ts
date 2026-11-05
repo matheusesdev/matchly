@@ -16,7 +16,7 @@ export function analysisRow(overrides: Row = {}): Row {
   return {
     id: ID, match_score: 72, job_text: 'Analista Financeiro\nBuscamos pessoa com experiência em conciliação.',
     optimized_resume_text: null, changes_summary: [], evidence: [], user_facts: [], cover_letter: null, cover_letter_evidence: [],
-    missing_keywords: ['Métricas'], strengths: ['Excel avançado', 'Conciliação bancária'],
+    missing_keywords: ['Métricas'], matched_keywords: ['Excel avançado', 'SAP'], strengths: ['Excel avançado', 'Conciliação bancária'],
     gaps: [{ area: 'Métricas de produto', descricao: 'A vaga pede decisões orientadas a dados.' }, { area: 'Inglês avançado', descricao: 'Requisito explícito não encontrado.' }],
     created_at: '2026-11-01T10:00:00Z', resume_id: 'r1',
     resumes: { original_filename: 'cv-ana.pdf', raw_text: 'Ana Souza\nConciliação bancária diária de 150 contas\nElaborei relatórios mensais' },

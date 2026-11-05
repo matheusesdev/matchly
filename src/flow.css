@@ -27,3 +27,7 @@
 .ba-note{display:block;margin-top:6px;color:var(--muted);font-size:12px}
 .download-actions{display:flex;gap:8px;flex-wrap:wrap}
 .download-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* O cartão é uma grade de 3 colunas (selo, texto, botão); ações extras ocupam a linha inteira. */
+.optimize-card .cta-row,.optimize-card .regenerate-row{grid-column:1/-1}
+.optimize-card .cta-row .outline,.optimize-card .regenerate-row .outline{width:auto;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;font-size:14px;padding:10px 16px}
