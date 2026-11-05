@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowRight, Briefcase, Check, CheckCircle, FileArrowUp, FileDoc,
   Lightning, ListChecks, LockKey, MagicWand, ShieldCheck, Sparkle,
@@ -15,6 +15,8 @@ import { analyzeResume, generateCoverLetter, optimizeResume, type AnalysisResult
 import { fetchAnalysis, saveUserFacts, type SavedAnalysis } from './lib/analyses'
 import { GapQuestion } from './components/GapQuestion'
 import { CoverLetterScreen } from './components/CoverLetterScreen'
+import { AccountPage } from './components/AccountPage'
+import { AccountDeletedPage, PrivacyPage, TermsPage } from './components/LegalPages'
 import { MAX_FACTS, type UserFact } from '../supabase/functions/_shared/facts'
 
 const jobExample = `Product Designer Sênior
@@ -35,7 +37,7 @@ function Header({ user, onAuth, onStart, landing }: { user: User | null; onAuth:
       <div className="secure"><LockKey weight="bold" /> Seus dados ficam seguros</div>
       {user && <button className="outline" onClick={() => navigate('/analises')}>Minhas análises</button>}
       {isSupabaseConfigured && (user
-        ? <button className="account-button" onClick={() => supabase?.auth.signOut()} title="Sair"><UserCircle weight="fill" /><span>{user.email}</span></button>
+        ? <button className="account-button" onClick={() => navigate('/conta')} title="Minha conta"><UserCircle weight="fill" /><span>{user.email}</span></button>
         : <button className="outline" onClick={onAuth}>Entrar</button>)}
       {landing && <button className="primary header-cta" onClick={onStart}>Acesso ao MVP <ArrowRight /></button>}
     </div>
@@ -101,7 +103,7 @@ function InputScreen({ onAnalyze, error }: { onAnalyze: (file: File, text: strin
       </section>
       {error && <div className="flow-error">{error}</div>}
       <button className="primary big" disabled={!canGo} onClick={() => file && onAnalyze(file, text)}><MagicWand weight="fill" /> Analisar compatibilidade <ArrowRight weight="bold" /></button>
-      <p className="privacy"><ShieldCheck weight="fill" /> Seus arquivos são processados com segurança e nunca compartilhados.</p>
+      <p className="privacy"><ShieldCheck weight="fill" /> Para gerar os resultados, o texto do seu currículo e da vaga é enviado ao Google Gemini (IA). Não o usamos para publicidade nem o vendemos. <Link to="/privacidade">Saiba mais</Link></p>
     </main>
     <div className="trust-row"><span><CheckCircle weight="fill" /> Sem informações inventadas</span><span><CheckCircle weight="fill" /> Texto simples e legível</span><span><CheckCircle weight="fill" /> Resultado em segundos</span></div>
   </>
@@ -311,9 +313,13 @@ export default function App() {
       <Route path="/analises/:id" element={guard(<ResultPage />)} />
       <Route path="/analises/:id/otimizado" element={guard(<OptimizedPage />)} />
       <Route path="/analises/:id/carta" element={guard(<CoverLetterPage />)} />
+      <Route path="/conta" element={guard(user ? <AccountPage user={user} /> : null)} />
+      <Route path="/termos" element={<TermsPage />} />
+      <Route path="/privacidade" element={<PrivacyPage />} />
+      <Route path="/conta-excluida" element={<AccountDeletedPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-    <footer><Logo /><span>Currículos mais relevantes. Carreiras mais próximas.</span><small>© 2026 Matchly</small></footer>
+    <footer><Logo /><span>Currículos mais relevantes. Carreiras mais próximas.</span><nav className="footer-legal" aria-label="Legal"><Link to="/termos">Termos</Link><Link to="/privacidade">Privacidade</Link></nav><small>© 2026 Matchly</small></footer>
     <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} onAuthenticated={() => { setAuthOpen(false); navigate(afterAuth, { replace: true }) }} />
   </div>
 }

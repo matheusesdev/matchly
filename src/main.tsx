@@ -11,6 +11,7 @@ import './history.css'
 import './evidence.css'
 import './gaps.css'
 import './letter.css'
+import './legal.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><BrowserRouter><App /></BrowserRouter></StrictMode>,
