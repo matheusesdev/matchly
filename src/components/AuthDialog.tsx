@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ArrowRight, Envelope, LockKey, X } from '@phosphor-icons/react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 type Props = { open: boolean; onClose: () => void; onAuthenticated: () => void }
@@ -35,6 +36,7 @@ export function AuthDialog({ open, onClose, onAuthenticated }: Props) {
         <button className="primary" disabled={busy || !supabase}>{busy ? 'Aguarde...' : 'Entrar'} <ArrowRight /></button>
       </form>
       <p className="auth-access-note">O acesso é liberado manualmente durante esta fase.</p>
+      <p className="auth-consent">Ao entrar, você concorda com os <Link to="/termos" onClick={onClose}>Termos de Uso</Link> e com a <Link to="/privacidade" onClick={onClose}>Política de Privacidade</Link>.</p>
     </section>
   </div>
 }

@@ -75,3 +75,12 @@ export async function generateCoverLetter(analysisId: string, tone: CoverLetterT
   if (!data) throw new Error('A geração não retornou dados')
   return data
 }
+
+export async function deleteAccount(confirmEmail: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const { error } = await supabase.functions.invoke('delete-account', {
+    body: { confirm_email: confirmEmail },
+    headers: await authorizationHeaders(),
+  })
+  if (error) throw await functionError(error, 'Não foi possível excluir a conta')
+}
