@@ -36,8 +36,17 @@ const resumeOf = (ref: ResumeRef) => (Array.isArray(ref) ? ref[0] : ref)
 const filenameOf = (ref: ResumeRef) => resumeOf(ref)?.original_filename ?? 'Currículo'
 
 /** Usa a primeira linha não vazia da vaga como título (ex.: "Product Designer Sênior"). */
+const SECTION_LABEL = /^(sobre( a| o| nós| a empresa| a vaga)?|descri[cç][aã]o( da vaga)?|vaga|oportunidade|requisitos?|responsabilidades?|atribui[cç][oõ]es|seu papel( será)?|about|job description|quem somos|benef[ií]cios)\b/i
+
+/** Remove emojis, marcadores e símbolos do início da linha. */
+const stripLeadingSymbols = (line: string) => line.replace(/^[^\p{L}\p{N}]+/u, '').trim()
+
+const isSectionLabel = (line: string) => line.endsWith(':') || (SECTION_LABEL.test(line) && line.split(/\s+/).length <= 4)
+
+/** Título derivado do texto da vaga quando a IA não informou o cargo: ignora rótulos de seção como "Sobre a vaga". */
 export function jobTitle(jobText: string, max = 80): string {
-  const line = jobText.split('\n').map((part) => part.trim()).find(Boolean) ?? 'Vaga sem título'
+  const lines = jobText.split('\n').map(stripLeadingSymbols).filter(Boolean)
+  const line = lines.find((candidate) => !isSectionLabel(candidate)) ?? lines[0] ?? 'Vaga sem título'
   return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line
 }
 
@@ -68,11 +77,11 @@ export async function saveUserFacts(id: string, facts: UserFact[]): Promise<void
 
 export async function listAnalyses(): Promise<AnalysisSummary[]> {
   const { data, error } = await client().from('analyses')
-    .select('id, match_score, job_text, optimized_resume_text, created_at, resumes(original_filename)')
+    .select('id, match_score, job_title, job_text, optimized_resume_text, created_at, resumes(original_filename)')
     .order('created_at', { ascending: false }).limit(50)
   if (error) throw new Error('Não foi possível carregar seu histórico.')
   return (data ?? []).map((row) => ({
-    id: row.id, match_score: row.match_score ?? 0, created_at: row.created_at, job_title: jobTitle(row.job_text),
+    id: row.id, match_score: row.match_score ?? 0, created_at: row.created_at, job_title: row.job_title?.trim() || jobTitle(row.job_text),
     filename: filenameOf(row.resumes as ResumeRef), has_optimized: Boolean(row.optimized_resume_text),
   }))
 }

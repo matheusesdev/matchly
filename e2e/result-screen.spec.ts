@@ -38,3 +38,29 @@ test.describe('tela de resultado da análise', () => {
     })
   }
 })
+
+test.describe('acabamento no celular (regressões vistas em produção)', () => {
+  test('o currículo com origem usa uma tipografia só (frases clicáveis e linhas simples)', async ({ page }) => {
+    const { optimizedRow } = await import('./support')
+    const backend = await setup(page, optimizedRow())
+    await backend.login()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(`/analises/${ID}/otimizado`)
+    await expect(page.locator('.evidence-paper')).toBeVisible()
+    const size = (selector: string) => page.locator(selector).first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    // Antes: as frases clicáveis (button) ficavam bem maiores que as linhas simples.
+    expect(await size('.ev-line button')).toBe(await size('.ev-plain'))
+  })
+
+  test('links do rodapé e ações secundárias têm alvo de toque confortável', async ({ page }) => {
+    const backend = await setup(page, analysisRow())
+    await backend.login()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(`/analises/${ID}`)
+    for (const link of await page.locator('footer .footer-legal a').all()) {
+      expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(40)
+    }
+    await page.goto('/analisar')
+    expect((await page.getByRole('button', { name: 'Usar exemplo' }).boundingBox())!.height).toBeGreaterThanOrEqual(32)
+  })
+})

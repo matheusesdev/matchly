@@ -14,3 +14,15 @@ describe('jobTitle', () => {
     expect(jobTitle('   \n ')).toBe('Vaga sem título')
   })
 })
+
+describe('jobTitle: ignora títulos de seção e emojis', () => {
+  it('pula "Sobre a vaga" e usa a linha seguinte', () => {
+    expect(jobTitle('Sobre a vaga\nAnalista Financeiro Sênior\nBuscamos...')).toBe('Analista Financeiro Sênior')
+  })
+  it('remove emojis e pula rótulos com dois pontos', () => {
+    expect(jobTitle('💼 Sobre a Vaga\nSeu papel será:\nProduct Designer Pleno')).toBe('Product Designer Pleno')
+  })
+  it('se só houver títulos de seção, usa a primeira linha limpa', () => {
+    expect(jobTitle('Sobre a vaga')).toBe('Sobre a vaga')
+  })
+})

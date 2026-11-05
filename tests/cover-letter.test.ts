@@ -60,8 +60,10 @@ describe('números na carta', () => {
 
 describe('prompt da carta', () => {
   it('muda o tom e inclui fatos só quando existem', () => {
-    expect(buildCoverLetterPrompt('v', 'c', '', 'proximo')).toContain('próximo e natural')
-    expect(buildCoverLetterPrompt('v', 'c', '', 'profissional')).toContain('profissional e objetivo')
+    expect(buildCoverLetterPrompt('v', 'c', '', 'proximo')).toContain('Tom PRÓXIMO')
+    expect(buildCoverLetterPrompt('v', 'c', '', 'proximo')).toContain('Abraço,')
+    expect(buildCoverLetterPrompt('v', 'c', '', 'profissional')).toContain('Tom PROFISSIONAL')
+    expect(buildCoverLetterPrompt('v', 'c', '', 'profissional')).toContain('Atenciosamente,')
     expect(buildCoverLetterPrompt('v', 'c', '', 'profissional')).not.toContain('<fatos_do_candidato>')
     expect(buildCoverLetterPrompt('v', 'c', 'Inglês: fluente', 'profissional')).toContain('Inglês: fluente')
   })
@@ -82,5 +84,14 @@ describe('cota da carta', () => {
   it('tem limite padrão e aceita override', () => {
     expect(dailyLimit('cover_letter', () => undefined)).toBe(10)
     expect(dailyLimit('cover_letter', (name) => (name === 'QUOTA_COVER_LETTER_PER_DAY' ? '3' : undefined))).toBe(3)
+  })
+})
+
+describe('qualidade pedida à carta', () => {
+  it('exige 150 a 220 palavras e a ligação explícita entre requisitos da vaga e experiências', () => {
+    const prompt = buildCoverLetterPrompt('v', 'c', '', 'profissional')
+    expect(prompt).toContain('Entre 150 e 220 palavras')
+    expect(prompt).toContain('relacione explicitamente 2 ou 3 requisitos da vaga')
+    expect(prompt).toContain('Não copie frases inteiras do currículo')
   })
 })

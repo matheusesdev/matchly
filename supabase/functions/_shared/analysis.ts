@@ -8,6 +8,7 @@ import { normalizeForMatch } from './evidence.ts'
 export type Gap = { area: string; descricao: string }
 export type AnalysisDraft = {
   match_score: number
+  job_title: string
   strengths: { text: string; quote: string }[]
   gaps: { area: string; descricao: string; quote: string }[]
   matched_keywords: string[]
@@ -15,6 +16,7 @@ export type AnalysisDraft = {
 }
 export type Analysis = {
   match_score: number
+  job_title: string | null
   strengths: string[]
   gaps: Gap[]
   matched_keywords: string[]
@@ -50,6 +52,7 @@ export function parseAnalysisDraft(raw: unknown): AnalysisDraft {
   }).filter((item) => item.area && item.descricao)
   return {
     match_score: Math.max(0, Math.min(100, Math.round(score))),
+    job_title: clean(data.job_title, 80),
     strengths: strengths.slice(0, 12),
     gaps: gaps.slice(0, 10),
     matched_keywords: list(data.matched_keywords, 20, 60),
@@ -82,7 +85,8 @@ export function verifyAnalysis(draft: AnalysisDraft, resume: string, job: string
   const matched = draft.matched_keywords.filter((term) => containsTerm(resume, term) && containsTerm(job, term)).slice(0, MAX.keywords)
   const missing = draft.missing_keywords.filter((term) => containsTerm(job, term) && !containsTerm(resume, term)).slice(0, MAX.keywords)
   return {
-    analysis: { match_score: draft.match_score, strengths, gaps, matched_keywords: matched, missing_keywords: missing },
+    // O cargo só vale se aparecer no texto da vaga (evita título inventado); senão o front usa um título derivado do texto.
+    analysis: { match_score: draft.match_score, job_title: draft.job_title && containsQuote(job, draft.job_title) ? draft.job_title : null, strengths, gaps, matched_keywords: matched, missing_keywords: missing },
     stats: { proposed: draft.strengths.length + draft.gaps.length, kept: strengths.length + gaps.length },
   }
 }

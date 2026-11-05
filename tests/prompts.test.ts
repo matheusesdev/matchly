@@ -14,3 +14,13 @@ describe('prompts', () => {
     expect(buildOptimizationPrompt('v', 'c')).not.toContain('ATENÇÃO')
   })
 })
+
+describe('otimização realmente adaptada à vaga', () => {
+  it('exige resumo reescrito, itens relevantes primeiro e habilidades em uma linha', () => {
+    const prompt = buildOptimizationPrompt('v', 'c')
+    for (const term of ['RESUMO: escreva 2 ou 3 frases', 'coloque primeiro os itens mais relevantes', 'UMA única linha separada por', 'Mantenha nome, contato, cargos, empresas e datas']) expect(prompt).toContain(term)
+  })
+  it('proíbe um resumo de mudanças vazio ("mantive tudo inalterado")', () => {
+    expect(buildOptimizationPrompt('v', 'c')).toContain('Nunca escreva que algo foi mantido inalterado')
+  })
+})

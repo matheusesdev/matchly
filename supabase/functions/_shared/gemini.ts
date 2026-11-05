@@ -5,7 +5,7 @@ const fallbackModel = Deno.env.get('GEMINI_FALLBACK_MODEL') ?? 'gemini-3.5-flash
 const timeoutMs = Number(Deno.env.get('GEMINI_TIMEOUT_MS') ?? 30_000)
 const retryableStatuses = new Set([429, 500, 502, 503, 504])
 
-export async function callGemini(prompt: string, schema: unknown) {
+export async function callGemini(prompt: string, schema: unknown, options: { temperature?: number } = {}) {
   const apiKey = Deno.env.get('GEMINI_API_KEY')
   if (!apiKey) throw new Error('Gemini indisponível')
   let lastError = 'Gemini indisponível'
@@ -19,7 +19,7 @@ export async function callGemini(prompt: string, schema: unknown) {
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.2, maxOutputTokens: 8192 },
+            generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: options.temperature ?? 0.2, maxOutputTokens: 8192 },
           }),
           signal: controller.signal,
         })
