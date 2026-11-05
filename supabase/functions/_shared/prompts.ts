@@ -67,7 +67,7 @@ ${neutralize(resumeText)}
 </curriculo>`
 }
 
-export type OptimizationFeedback = { invented?: string[]; lowEvidence?: boolean }
+export type OptimizationFeedback = { invented?: string[]; lowEvidence?: boolean; tooShort?: boolean }
 
 export function buildOptimizationPrompt(jobText: string, resumeText: string, feedback?: OptimizationFeedback, factsText = '') {
   const factsRule = factsText
@@ -92,7 +92,7 @@ Você NÃO PODE: adicionar empresas, cargos, datas, números, métricas, ferrame
 Formato: seções em MAIÚSCULAS em linha própria (ex.: RESUMO, EXPERIÊNCIA PROFISSIONAL, FORMAÇÃO, HABILIDADES), itens de lista iniciados por "- ". Preserve os dados de contato exatamente como estão.
 A primeira linha do texto deve ser o nome do candidato, seguida dos dados de contato, antes da primeira seção.
 changes_summary: de 3 a 5 frases curtas descrevendo mudanças CONCRETAS que você fez (ex.: "Resumo reescrito com foco em conciliação e fechamento"). Nunca escreva que algo foi mantido inalterado.
-${factsRule}evidence: para CADA linha de conteúdo do currículo reescrito (itens de lista e parágrafos dentro das seções, exceto títulos e contato), devolva {line, source_quote}. "line" é a linha exatamente como aparece em optimized_resume, sem o "- " inicial. "source_quote" é um trecho CONTÍGUO copiado LITERALMENTE, palavra por palavra, do currículo original, que sustenta essa linha. Nunca parafraseie nem traduza o source_quote.
+${factsRule}evidence: para CADA linha de conteúdo do currículo reescrito (itens de lista e parágrafos dentro das seções, exceto títulos e contato), devolva {line, source_quote}. "line" é a linha exatamente como aparece em optimized_resume, sem o "- " inicial. "source_quote" é um trecho CONTÍGUO copiado LITERALMENTE, palavra por palavra, do currículo original, que sustenta essa linha. Nunca parafraseie nem traduza o source_quote. Se uma linha tiver mais de uma frase (como o RESUMO), devolva UMA entrada para CADA frase, com "line" igual à frase e o "source_quote" que a sustenta.
 ${retry}
 <vaga>
 ${neutralize(jobText)}
@@ -126,6 +126,7 @@ export function buildCoverLetterPrompt(jobText: string, resumeText: string, fact
   const notes: string[] = []
   if (feedback?.invented?.length) notes.push(`a versão anterior continha números que não existem no currículo nem nos fatos do candidato (${feedback.invented.join(', ')}). Remova-os.`)
   if (feedback?.lowEvidence) notes.push('a versão anterior tinha afirmações sem citação válida. Cada frase factual precisa de um source_quote copiado LITERALMENTE do currículo ou dos fatos do candidato; se não houver trecho que a sustente, remova a frase.')
+  if (feedback?.tooShort) notes.push('a versão anterior ficou curta demais. Escreva entre 150 e 220 palavras, desenvolvendo melhor cada parágrafo com experiências específicas do currículo e sua ligação com os requisitos da vaga.')
   const retry = notes.length ? `\nATENÇÃO: ${notes.join(' Além disso, ')}\n` : ''
   const factsBlock = factsText ? `\n\n<fatos_do_candidato>\n${neutralize(factsText)}\n</fatos_do_candidato>` : ''
   const factsRule = factsText ? 'Os fatos em <fatos_do_candidato> foram informados pelo candidato e podem ser usados como se estivessem no currículo.\n' : ''

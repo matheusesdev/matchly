@@ -46,10 +46,21 @@ export function findUnsupportedNumbers(original: string, optimized: string): str
 
 export type CoverLetter = { cover_letter: string; evidence: { line: string; source_quote: string }[] }
 
+export const MIN_LETTER_WORDS = 130
+
+export const countWords = (text: string) => text.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length
+
+// A IA às vezes cola a despedida no fim do último parágrafo ("... agradeço. Atenciosamente,"). Ela vai para parágrafo próprio.
+const SIGN_OFF = /([.!?])[ \t]+((?:Atenciosamente|Cordialmente|Cumprimentos|Um abraço|Abraços?),)/
+
+export function normalizeLetter(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(SIGN_OFF, '$1\n\n$2').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 export function parseCoverLetter(raw: unknown): CoverLetter {
   if (!raw || typeof raw !== 'object') throw new Error('Resposta da IA inválida')
   const data = raw as Record<string, unknown>
-  const text = typeof data.cover_letter === 'string' ? data.cover_letter.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim() : ''
+  const text = typeof data.cover_letter === 'string' ? normalizeLetter(data.cover_letter) : ''
   if (text.length < 200) throw new Error('Carta vazia ou curta demais')
   const evidence = (Array.isArray(data.evidence) ? data.evidence : [])
     .map((entry) => {

@@ -2,7 +2,7 @@ import { authorizeMvpUser } from '../_shared/auth.ts'
 import { corsHeaders, isAllowedOrigin } from '../_shared/cors.ts'
 import { callGemini } from '../_shared/gemini.ts'
 import { isJsonRequest, json, requestId } from '../_shared/http.ts'
-import { findUnsupportedNumbers, parseCoverLetter, type CoverLetter } from '../_shared/ai-output.ts'
+import { MIN_LETTER_WORDS, countWords, findUnsupportedNumbers, parseCoverLetter, type CoverLetter } from '../_shared/ai-output.ts'
 import { MIN_VERIFIED_RATIO, isAcceptable, pickBetter, verifyLetter, type Attempt } from '../_shared/evidence.ts'
 import { factsToText, sanitizeFacts } from '../_shared/facts.ts'
 import { COVER_LETTER_SCHEMA, buildCoverLetterPrompt, isCoverLetterTone, type OptimizationFeedback } from '../_shared/prompts.ts'
@@ -39,9 +39,11 @@ Deno.serve(async (request) => {
       const value = parseCoverLetter(await callGemini(buildCoverLetterPrompt(data.job_text, original, factsText, tone, feedback), COVER_LETTER_SCHEMA))
       return { value, invented: findUnsupportedNumbers(knownSource, value.cover_letter), fidelity: verifyLetter(value.cover_letter, value.evidence, original, factsText) }
     }
+    // Também refaz uma vez se a carta ficar curta demais (o modelo tende a escrever menos que o pedido).
+    const wordsOf = (attempt: Attempt<CoverLetter>) => countWords(attempt.value.cover_letter)
     let best = await generate()
-    if (!isAcceptable(best)) {
-      const second = await generate({ invented: best.invented, lowEvidence: best.fidelity.ratio < MIN_VERIFIED_RATIO })
+    if (!isAcceptable(best) || wordsOf(best) < MIN_LETTER_WORDS) {
+      const second = await generate({ invented: best.invented, lowEvidence: best.fidelity.ratio < MIN_VERIFIED_RATIO, tooShort: wordsOf(best) < MIN_LETTER_WORDS })
       best = pickBetter(best, second)
     }
     if (best.invented.length) {
