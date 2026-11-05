@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { Gap } from './api'
 import type { EvidenceItem } from '../../supabase/functions/_shared/evidence'
+import { sanitizeFacts, type UserFact } from '../../supabase/functions/_shared/facts'
 
 export type SavedAnalysis = {
   analysis_id: string
@@ -12,6 +13,7 @@ export type SavedAnalysis = {
   optimized_resume_text: string | null
   changes_summary: string[]
   evidence: EvidenceItem[]
+  user_facts: UserFact[]
   created_at: string
   filename: string
   resume_text: string
@@ -43,16 +45,22 @@ function client() {
 
 export async function fetchAnalysis(id: string): Promise<SavedAnalysis | null> {
   const { data, error } = await client().from('analyses')
-    .select('id, match_score, missing_keywords, gaps, strengths, job_text, optimized_resume_text, changes_summary, evidence, created_at, resumes(original_filename, raw_text)')
+    .select('id, match_score, missing_keywords, gaps, strengths, job_text, optimized_resume_text, changes_summary, evidence, user_facts, created_at, resumes(original_filename, raw_text)')
     .eq('id', id).maybeSingle()
   if (error) throw new Error('Não foi possível carregar a análise.')
   if (!data) return null
   return {
     analysis_id: data.id, match_score: data.match_score ?? 0, missing_keywords: data.missing_keywords ?? [], gaps: data.gaps ?? [],
     strengths: data.strengths ?? [], job_text: data.job_text, optimized_resume_text: data.optimized_resume_text,
-    changes_summary: data.changes_summary ?? [], evidence: data.evidence ?? [], created_at: data.created_at,
+    changes_summary: data.changes_summary ?? [], evidence: data.evidence ?? [], user_facts: sanitizeFacts(data.user_facts), created_at: data.created_at,
     filename: filenameOf(data.resumes as ResumeRef), resume_text: resumeOf(data.resumes as ResumeRef)?.raw_text ?? '',
   }
+}
+
+/** Salva as respostas do candidato. O servidor as relê do banco (e sanitiza) ao otimizar. */
+export async function saveUserFacts(id: string, facts: UserFact[]): Promise<void> {
+  const { error } = await client().from('analyses').update({ user_facts: sanitizeFacts(facts) }).eq('id', id)
+  if (error) throw new Error('Não foi possível salvar sua resposta.')
 }
 
 export async function listAnalyses(): Promise<AnalysisSummary[]> {

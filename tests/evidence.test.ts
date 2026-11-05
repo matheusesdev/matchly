@@ -100,3 +100,20 @@ describe('seleção de tentativas', () => {
     expect(pickBetter({ value: 'a', invented: [], fidelity: fid(0.5) }, { value: 'b', invented: [], fidelity: fid(0.8) }).value).toBe('b')
   })
 })
+
+describe('verifyEvidence com fatos do candidato', () => {
+  const facts = 'Métricas de produto: Acompanhei a taxa de conversão semanal do checkout no Mixpanel'
+  const text = 'ANA\nRESUMO\nAcompanhamento semanal da taxa de conversão do checkout.\nConciliação bancária diária de 150 contas, com foco.'
+  it('aceita citação vinda dos fatos e a identifica como do candidato', () => {
+    const result = verifyEvidence(original, text, [
+      { line: 'Acompanhamento semanal da taxa de conversão do checkout.', source_quote: 'taxa de conversão semanal do checkout no Mixpanel' },
+      { line: 'Conciliação bancária diária de 150 contas, com foco.', source_quote: 'conciliação bancária diária de 150 contas' },
+    ], facts)
+    expect(result.items[0]).toMatchObject({ verified: true, source: 'candidato' })
+    expect(result.items[1]).toMatchObject({ verified: true, source: 'curriculo' })
+  })
+  it('sem os fatos a mesma citação não é aceita', () => {
+    const result = verifyEvidence(original, text, [{ line: 'Acompanhamento semanal da taxa de conversão do checkout.', source_quote: 'taxa de conversão semanal do checkout no Mixpanel' }])
+    expect(result.items[0].verified).toBe(false)
+  })
+})

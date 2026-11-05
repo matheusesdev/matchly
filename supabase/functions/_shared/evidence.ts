@@ -2,7 +2,8 @@
 // A IA cita, para cada afirmação, um trecho literal do original; aqui conferimos se a citação existe de fato.
 
 export type RawEvidence = { line: string; source_quote: string }
-export type EvidenceItem = { line: string; quote: string; verified: boolean }
+export type EvidenceSource = 'curriculo' | 'candidato'
+export type EvidenceItem = { line: string; quote: string; verified: boolean; source?: EvidenceSource }
 export type Fidelity = { items: EvidenceItem[]; total: number; verified: number; ratio: number }
 
 const MIN_QUOTE_LENGTH = 6
@@ -37,8 +38,16 @@ export function claimLines(optimizedText: string): string[] {
     .filter((line) => line.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length >= 4)
 }
 
-export function verifyEvidence(original: string, optimizedText: string, raw: RawEvidence[]): Fidelity {
+/** `extraSource` = fatos informados pelo candidato: também valem como prova, mas ficam identificados. */
+export function verifyEvidence(original: string, optimizedText: string, raw: RawEvidence[], extraSource = ''): Fidelity {
   const normalizedOriginal = normalizeForMatch(original)
+  const normalizedExtra = normalizeForMatch(extraSource)
+  const locate = (quote: string): EvidenceSource | null => {
+    const normalized = normalizeForMatch(quote)
+    if (normalized.length < MIN_QUOTE_LENGTH) return null
+    if (normalizedOriginal.includes(normalized)) return 'curriculo'
+    return normalizedExtra && normalizedExtra.includes(normalized) ? 'candidato' : null
+  }
   const byLine = new Map<string, string[]>()
   for (const entry of raw) {
     const key = normalizeForMatch(stripBullet(entry.line ?? ''))
@@ -47,11 +56,9 @@ export function verifyEvidence(original: string, optimizedText: string, raw: Raw
   }
   const items: EvidenceItem[] = claimLines(optimizedText).map((line) => {
     const quotes = byLine.get(normalizeForMatch(line)) ?? []
-    const valid = quotes.find((quote) => {
-      const normalized = normalizeForMatch(quote)
-      return normalized.length >= MIN_QUOTE_LENGTH && normalizedOriginal.includes(normalized)
-    })
-    return { line, quote: valid ? valid.replace(/\s+/g, ' ').trim().slice(0, MAX_QUOTE_LENGTH) : '', verified: Boolean(valid) }
+    const found = quotes.map((quote) => ({ quote, source: locate(quote) })).find((candidate) => candidate.source)
+    if (!found || !found.source) return { line, quote: '', verified: false }
+    return { line, quote: found.quote.replace(/\s+/g, ' ').trim().slice(0, MAX_QUOTE_LENGTH), verified: true, source: found.source }
   })
   const verified = items.filter((item) => item.verified).length
   return { items, total: items.length, verified, ratio: items.length ? verified / items.length : 1 }

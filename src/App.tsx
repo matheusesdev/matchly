@@ -12,7 +12,9 @@ import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { HistoryPage } from './components/HistoryPage'
 import { OptimizedScreen } from './components/OptimizedScreen'
 import { analyzeResume, optimizeResume, type AnalysisResult, type OptimizedResult } from './lib/api'
-import { fetchAnalysis, type SavedAnalysis } from './lib/analyses'
+import { fetchAnalysis, saveUserFacts, type SavedAnalysis } from './lib/analyses'
+import { GapQuestion } from './components/GapQuestion'
+import { MAX_FACTS, type UserFact } from '../supabase/functions/_shared/facts'
 
 const jobExample = `Product Designer Sênior
 
@@ -116,7 +118,22 @@ function ScoreRing({ score }: { score: number }) {
   return <div className="score-ring" style={{'--score': String(score)} as React.CSSProperties}><div><strong>{score}</strong><span>/100</span></div></div>
 }
 
-function ResultScreen({ analysis, hasOptimized, onOptimize, onReset, busy, error }: { analysis: AnalysisResult; hasOptimized: boolean; onOptimize: () => void; onReset: () => void; busy: boolean; error: string }) {
+type ResultScreenProps = {
+  analysis: AnalysisResult
+  hasOptimized: boolean
+  facts: UserFact[]
+  onSaveFact: (area: string, answer: string) => Promise<void>
+  onRemoveFact: (area: string) => Promise<void>
+  onOptimize: () => void
+  onRegenerate: () => void
+  onReset: () => void
+  busy: boolean
+  error: string
+}
+
+const sameArea = (a: string, b: string) => a.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase() === b.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
+function ResultScreen({ analysis, hasOptimized, facts, onSaveFact, onRemoveFact, onOptimize, onRegenerate, onReset, busy, error }: ResultScreenProps) {
   const score = analysis.match_score
   const strengths = analysis.strengths
   const gaps = analysis.gaps
@@ -132,12 +149,14 @@ function ResultScreen({ analysis, hasOptimized, onOptimize, onReset, busy, error
         <ul>{strengths.map(item => <li key={item}><Check /> {item}</li>)}</ul>
       </section>
       <section className="panel gaps"><div className="panel-head"><span><Target weight="fill" /></span><div><h3>Oportunidades de melhoria</h3><p>Pontos que merecem mais destaque</p></div></div>
-        <ul>{gaps.map(item => <li key={item.area}><X /> <div><strong>{item.area}</strong><small>{item.descricao}</small></div></li>)}</ul>
+        <ul>{gaps.map(item => <li key={item.area}><X /> <div><strong>{item.area}</strong><small>{item.descricao}</small>
+          <GapQuestion area={item.area} fact={facts.find(fact => sameArea(fact.area, item.area))} canAdd={facts.length < MAX_FACTS}
+            onSave={answer => onSaveFact(item.area, answer)} onRemove={() => onRemoveFact(item.area)} /></div></li>)}</ul>
       </section>
     </div>
     <section className="keywords panel"><div className="panel-head"><span><ListChecks weight="fill" /></span><div><h3>Palavras-chave da vaga</h3><p>Termos que os sistemas de triagem podem procurar</p></div></div><div className="chips">{dynamicKeywords.map(k => <span className={k.found ? 'found' : 'missing'} key={k.name}>{k.found ? <Check /> : <X />}{k.name}</span>)}</div></section>
     {error && <div className="flow-error">{error}</div>}
-    <section className="optimize-card"><div className="magic-badge"><MagicWand weight="fill" /></div><div><span>PRÓXIMO PASSO</span><h2>Transforme essa análise em um currículo mais forte</h2><p>Vamos reescrever e reorganizar seu conteúdo com foco nesta vaga — sem inventar nenhuma informação.</p></div><button className="primary" disabled={busy} onClick={onOptimize}>{busy ? 'Otimizando...' : hasOptimized ? 'Ver currículo otimizado' : 'Gerar currículo otimizado'} <ArrowRight weight="bold" /></button></section>
+    <section className="optimize-card"><div className="magic-badge"><MagicWand weight="fill" /></div><div><span>PRÓXIMO PASSO</span><h2>Transforme essa análise em um currículo mais forte</h2><p>Vamos reescrever e reorganizar seu conteúdo com foco nesta vaga — sem inventar nenhuma informação.</p></div><button className="primary" disabled={busy} onClick={onOptimize}>{busy ? 'Otimizando...' : hasOptimized ? 'Ver currículo otimizado' : 'Gerar currículo otimizado'} <ArrowRight weight="bold" /></button>{hasOptimized && facts.length > 0 && <div className="regenerate-row"><button className="outline" disabled={busy} onClick={onRegenerate}><MagicWand /> Gerar novamente com minhas respostas</button><small>Usa 1 das suas otimizações diárias.</small></div>}</section>
   </main>
 }
 
@@ -182,20 +201,29 @@ function NotFoundAnalysis() {
 
 function ResultPage() {
   const { id } = useParams()
-  const navigate = useNavigate()
   const { status, data, error: loadError } = useSavedAnalysis(id)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
   if (status === 'loading') return <PageStatus text="Carregando análise..." />
   if (status === 'error') return <PageStatus text={loadError} />
   if (status === 'missing' || !data) return <NotFoundAnalysis />
-  const optimize = async () => {
-    if (data.optimized_resume_text) { navigate(`/analises/${data.analysis_id}/otimizado`); return }
+  return <LoadedResult data={data} />
+}
+
+function LoadedResult({ data }: { data: SavedAnalysis }) {
+  const navigate = useNavigate()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [facts, setFacts] = useState<UserFact[]>(data.user_facts)
+  const persist = async (next: UserFact[]) => { await saveUserFacts(data.analysis_id, next); setFacts(next) }
+  const saveFact = (area: string, answer: string) => persist([...facts.filter(fact => !sameArea(fact.area, area)), { area, answer }])
+  const removeFact = (area: string) => persist(facts.filter(fact => !sameArea(fact.area, area)))
+  const generate = async (force: boolean) => {
+    if (!force && data.optimized_resume_text) { navigate(`/analises/${data.analysis_id}/otimizado`); return }
     setBusy(true); setError('')
     try { await optimizeResume(data.analysis_id); navigate(`/analises/${data.analysis_id}/otimizado`) }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível otimizar o currículo.'); setBusy(false) }
   }
-  return <ResultScreen analysis={data} hasOptimized={Boolean(data.optimized_resume_text)} onOptimize={optimize} onReset={() => navigate('/analisar')} busy={busy} error={error} />
+  return <ResultScreen analysis={data} hasOptimized={Boolean(data.optimized_resume_text)} facts={facts} onSaveFact={saveFact} onRemoveFact={removeFact}
+    onOptimize={() => generate(false)} onRegenerate={() => generate(true)} onReset={() => navigate('/analisar')} busy={busy} error={error} />
 }
 
 function OptimizedPage() {
