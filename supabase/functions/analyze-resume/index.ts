@@ -10,17 +10,27 @@ import { parseAnalysis } from '../_shared/ai-output.ts'
 import { ANALYSIS_SCHEMA, buildAnalysisPrompt } from '../_shared/prompts.ts'
 import { MAX_RESUME_BYTES, detectResumeKind, sha256Hex, tidyExtractedText } from '../_shared/files.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
+import { buildRun, recordRun } from '../_shared/telemetry.ts'
 
 const MAX_RESUME_CHARS = 20_000
 
 Deno.serve(async (request) => {
   const id = requestId(request)
+  const startedAt = Date.now()
+  let attempts = 0
+  // deno-lint-ignore no-explicit-any
+  let actor: { client: any; userId: string } | null = null
   if (request.method === 'OPTIONS') return new Response('ok', { headers: { ...corsHeaders(request), 'X-Request-Id': id } })
   if (request.method !== 'POST' || !isAllowedOrigin(request) || !isMultipartRequest(request)) return json(request, { error: 'Requisição inválida.' }, 400, id)
   try {
     const access = await authorizeMvpUser(request)
     if (!access.allowed) return json(request, { error: access.error }, access.status, id)
     const { client, userId } = access
+    actor = { client, userId }
+    const invalid = async (message: string, status: number) => {
+      await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'invalid_input', startedAt }), id)
+      return json(request, { error: message }, status, id)
+    }
     const form = await request.formData(); const file = form.get('resume'); const jobText = String(form.get('job_text') ?? '').trim()
     if (!(file instanceof File) || file.size > MAX_RESUME_BYTES) return json(request, { error: 'Arquivo inválido. Envie um DOCX ou PDF de até 5 MB.' }, 400, id)
     if (jobText.length < 80 || jobText.length > 8000) return json(request, { error: 'Descrição inválida.' }, 400, id)
@@ -33,11 +43,11 @@ Deno.serve(async (request) => {
         ? tidyExtractedText((await extractText(await getDocumentProxy(bytes), { mergePages: true })).text as string)
         : (await mammoth.extractRawText({ buffer: Buffer.from(bytes) })).value.trim()
     } catch (_error) {
-      return json(request, { error: 'Não conseguimos ler o arquivo. Ele pode estar protegido ou corrompido.' }, 422, id)
+      return await invalid('Não conseguimos ler o arquivo. Ele pode estar protegido ou corrompido.', 422)
     }
-    if (resumeText.length < 50) return json(request, { error: 'Não encontramos texto suficiente no arquivo. Se for um PDF escaneado (imagem), envie uma versão com texto selecionável ou em DOCX.' }, 422, id)
-    if (resumeText.length > MAX_RESUME_CHARS) return json(request, { error: 'O currículo é longo demais. Envie uma versão de até cerca de 5 páginas.' }, 422, id)
-    if (!(await consumeQuota(client, userId, 'analyze', dailyLimit('analyze', (n) => Deno.env.get(n))))) return json(request, { error: 'Você atingiu o limite diário de análises. Tente novamente amanhã.' }, 429, id)
+    if (resumeText.length < 50) return await invalid('Não encontramos texto suficiente no arquivo. Se for um PDF escaneado (imagem), envie uma versão com texto selecionável ou em DOCX.', 422)
+    if (resumeText.length > MAX_RESUME_CHARS) return await invalid('O currículo é longo demais. Envie uma versão de até cerca de 5 páginas.', 422)
+    if (!(await consumeQuota(client, userId, 'analyze', dailyLimit('analyze', (n) => Deno.env.get(n))))) { await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'quota_exceeded', startedAt }), id); return json(request, { error: 'Você atingiu o limite diário de análises. Tente novamente amanhã.' }, 429, id) }
     const analysis = parseAnalysis(await callGemini(buildAnalysisPrompt(jobText, resumeText), ANALYSIS_SCHEMA))
     const contentHash = await sha256Hex(resumeText)
     const { data: existing } = await client.from('resumes').select('id').eq('user_id', userId).eq('content_hash', contentHash).limit(1).maybeSingle()
@@ -47,6 +57,10 @@ Deno.serve(async (request) => {
       resumeId = created.id
     }
     const { data: saved, error } = await client.from('analyses').insert({ user_id: userId, resume_id: resumeId, job_text: jobText, ...analysis }).select('id, match_score, missing_keywords, gaps, strengths').single(); if (error) throw error
+    attempts = 1
+    await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'ok', attempts, startedAt }), id)
     return json(request, { analysis_id: saved.id, ...saved }, 200, id)
-  } catch (error) { console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown' })); return json(request, { error: 'Não foi possível concluir a análise.' }, 500, id) }
+  } catch (error) {
+    if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'analyze', outcome: 'error', attempts, startedAt }), id)
+    console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown' })); return json(request, { error: 'Não foi possível concluir a análise.' }, 500, id) }
 })

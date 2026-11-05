@@ -47,6 +47,7 @@ export class FakeBackend {
   analyses = new Map<string, Row>()
   resumes: Row[] = [{ id: 'r1', original_filename: 'cv-ana.pdf', raw_text: 'Ana Souza ...' }]
   usage: Row[] = [{ id: 'e1', kind: 'analyze' }]
+  runs: Row[] = [{ id: 'g1', kind: 'analyze', outcome: 'ok' }]
   patches: Row[] = []
   deletedIds: string[] = []
   calls: { fn: string; body: unknown }[] = []
@@ -93,6 +94,7 @@ export class FakeBackend {
       if (method === 'HEAD') return route.fulfill({ status: 200, headers: { ...CORS, 'content-range': `*/${this.resumes.length}` }, body: '' })
       return json(route, this.resumes)
     })
+    await page.route('**/rest/v1/ai_runs*', (route) => (route.request().method() === 'OPTIONS' ? empty(route) : json(route, this.runs)))
     await page.route('**/rest/v1/usage_events*', (route) => (route.request().method() === 'OPTIONS' ? empty(route) : json(route, this.usage)))
 
     await page.route('**/functions/v1/*', async (route) => {

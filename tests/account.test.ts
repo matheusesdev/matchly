@@ -20,14 +20,15 @@ describe('matchesEmail', () => {
 
 describe('assembleExport', () => {
   it('reúne conta e tabelas com data de exportação', () => {
-    const out = assembleExport({ id: 'u1', email: 'a@b.com' }, { resumes: [{ id: 'r1' }], analyses: [{ id: 'a1' }, { id: 'a2' }], usage_events: [] }, new Date('2026-11-04T10:00:00Z'))
+    const out = assembleExport({ id: 'u1', email: 'a@b.com' }, { resumes: [{ id: 'r1' }], analyses: [{ id: 'a1' }, { id: 'a2' }], usage_events: [], ai_runs: [{ id: 'x1' }] }, new Date('2026-11-04T10:00:00Z'))
     expect(out.exportado_em).toBe('2026-11-04T10:00:00.000Z')
     expect(out.conta).toEqual({ id: 'u1', email: 'a@b.com' })
     expect(out.curriculos).toHaveLength(1)
     expect(out.analises).toHaveLength(2)
     expect(out.uso).toEqual([])
+    expect(out.execucoes_ia).toHaveLength(1)
   })
   it('aceita conta sem e-mail', () => {
-    expect(assembleExport({ id: 'u1', email: undefined }, { resumes: [], analyses: [], usage_events: [] }).conta.email).toBeNull()
+    expect(assembleExport({ id: 'u1', email: undefined }, { resumes: [], analyses: [], usage_events: [], ai_runs: [] }).conta.email).toBeNull()
   })
 })
