@@ -7,12 +7,15 @@ import { MIN_VERIFIED_RATIO, isAcceptable, pickBetter, verifyEvidence, type Atte
 import { OPTIMIZATION_SCHEMA, buildOptimizationPrompt, type OptimizationFeedback } from '../_shared/prompts.ts'
 import { factsToText, sanitizeFacts } from '../_shared/facts.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
-import { buildRun, classifyError, recordRun } from '../_shared/telemetry.ts'
+import { buildRun, classifyError, isRefundable, recordRun } from '../_shared/telemetry.ts'
+import { PROVIDER_BUSY_MESSAGE } from '../_shared/http.ts'
+import { refundUsage } from '../_shared/refund.ts'
 
 Deno.serve(async (request) => {
   const id = requestId(request)
   const startedAt = Date.now()
   let attempts = 0
+  let quotaEventId: string | null = null
   // deno-lint-ignore no-explicit-any
   let actor: { client: any; userId: string } | null = null
   if (request.method === 'OPTIONS') return new Response('ok', { headers: { ...corsHeaders(request), 'X-Request-Id': id } })
@@ -30,7 +33,9 @@ Deno.serve(async (request) => {
     // Fatos informados pelo candidato vêm do banco (nunca do corpo da requisição) e são sanitizados.
     const factsText = factsToText(sanitizeFacts(data.user_facts))
     const knownSource = factsText ? `${original}\n${factsText}` : original
-    if (!(await consumeQuota(client, userId, 'optimize', dailyLimit('optimize', (n) => Deno.env.get(n))))) { await recordRun(client, userId, buildRun({ kind: 'optimize', outcome: 'quota_exceeded', startedAt }), id); return json(request, { error: 'Você atingiu o limite diário de otimizações. Tente novamente amanhã.' }, 429, id) }
+    const quota = await consumeQuota(client, userId, 'optimize', dailyLimit('optimize', (n) => Deno.env.get(n)))
+    quotaEventId = quota.eventId
+    if (!quota.ok) { await recordRun(client, userId, buildRun({ kind: 'optimize', outcome: 'quota_exceeded', startedAt }), id); return json(request, { error: 'Você atingiu o limite diário de otimizações. Tente novamente amanhã.' }, 429, id) }
 
     // Até 2 tentativas: reprova números inventados e exige que a maioria das afirmações cite um trecho real do original.
     const generate = async (feedback?: OptimizationFeedback): Promise<Attempt<Optimization>> => {
@@ -45,6 +50,7 @@ Deno.serve(async (request) => {
     }
     if (best.invented.length) {
       console.error(JSON.stringify({ request_id: id, error: 'unsupported_numbers', count: best.invented.length }))
+      if (quotaEventId) await refundUsage(quotaEventId)
       await recordRun(client, userId, buildRun({ kind: 'optimize', outcome: 'unsupported_numbers', attempts, fidelity: best.fidelity, startedAt }), id)
       return json(request, { error: 'Não conseguimos gerar uma versão fiel ao seu currículo desta vez. Tente novamente.' }, 502, id)
     }
@@ -54,6 +60,9 @@ Deno.serve(async (request) => {
     await recordRun(client, userId, buildRun({ kind: 'optimize', outcome: 'ok', attempts, fidelity: best.fidelity, startedAt }), id)
     return json(request, optimized, 200, id)
   } catch (error) {
-    if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'optimize', outcome: 'error', attempts, errorCode: classifyError(error), startedAt }), id)
-    console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown', code: classifyError(error) })); return json(request, { error: 'Não foi possível otimizar o currículo.' }, 500, id) }
+    const code = classifyError(error)
+    const refundable = isRefundable(code)
+    if (refundable && quotaEventId) await refundUsage(quotaEventId)
+    if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'optimize', outcome: 'error', attempts, errorCode: code, startedAt }), id)
+    console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown', code })); if (refundable) return json(request, { error: PROVIDER_BUSY_MESSAGE }, 503, id); return json(request, { error: 'Não foi possível otimizar o currículo.' }, 500, id) }
 })

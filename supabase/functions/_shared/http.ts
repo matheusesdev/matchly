@@ -18,3 +18,6 @@ export function isJsonRequest(request: Request) {
 export function isMultipartRequest(request: Request) {
   return (request.headers.get('content-type') ?? '').toLowerCase().startsWith('multipart/form-data;')
 }
+
+/** Mensagem quando a falha é da IA (indisponível ou resposta inválida) e não do usuário. */
+export const PROVIDER_BUSY_MESSAGE = 'A IA não conseguiu concluir agora. Tente novamente em instantes; esta tentativa não foi descontada do seu limite diário.'

@@ -10,7 +10,9 @@ import { parseAnalysisDraft, verifyAnalysis } from '../_shared/analysis.ts'
 import { ANALYSIS_SCHEMA, buildAnalysisPrompt } from '../_shared/prompts.ts'
 import { MAX_RESUME_BYTES, detectResumeKind, sha256Hex, tidyExtractedText } from '../_shared/files.ts'
 import { consumeQuota, dailyLimit } from '../_shared/quota.ts'
-import { buildRun, classifyError, recordRun } from '../_shared/telemetry.ts'
+import { buildRun, classifyError, isRefundable, recordRun } from '../_shared/telemetry.ts'
+import { PROVIDER_BUSY_MESSAGE } from '../_shared/http.ts'
+import { refundUsage } from '../_shared/refund.ts'
 
 const MAX_RESUME_CHARS = 20_000
 
@@ -18,6 +20,7 @@ Deno.serve(async (request) => {
   const id = requestId(request)
   const startedAt = Date.now()
   let attempts = 0
+  let quotaEventId: string | null = null
   // deno-lint-ignore no-explicit-any
   let actor: { client: any; userId: string } | null = null
   if (request.method === 'OPTIONS') return new Response('ok', { headers: { ...corsHeaders(request), 'X-Request-Id': id } })
@@ -47,7 +50,9 @@ Deno.serve(async (request) => {
     }
     if (resumeText.length < 50) return await invalid('Não encontramos texto suficiente no arquivo. Se for um PDF escaneado (imagem), envie uma versão com texto selecionável ou em DOCX.', 422)
     if (resumeText.length > MAX_RESUME_CHARS) return await invalid('O currículo é longo demais. Envie uma versão de até cerca de 5 páginas.', 422)
-    if (!(await consumeQuota(client, userId, 'analyze', dailyLimit('analyze', (n) => Deno.env.get(n))))) { await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'quota_exceeded', startedAt }), id); return json(request, { error: 'Você atingiu o limite diário de análises. Tente novamente amanhã.' }, 429, id) }
+    const quota = await consumeQuota(client, userId, 'analyze', dailyLimit('analyze', (n) => Deno.env.get(n)))
+    quotaEventId = quota.eventId
+    if (!quota.ok) { await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'quota_exceeded', startedAt }), id); return json(request, { error: 'Você atingiu o limite diário de análises. Tente novamente amanhã.' }, 429, id) }
     attempts = 1
     // As citações da IA são conferidas contra o currículo e a vaga; o que não tem prova (ou tem número errado) é descartado.
     const { analysis, stats } = verifyAnalysis(parseAnalysisDraft(await callGemini(buildAnalysisPrompt(jobText, resumeText), ANALYSIS_SCHEMA, { temperature: 0 })), resumeText, jobText)
@@ -62,6 +67,9 @@ Deno.serve(async (request) => {
     await recordRun(client, userId, buildRun({ kind: 'analyze', outcome: 'ok', attempts, fidelity: { verified: stats.kept, total: stats.proposed, ratio: stats.proposed ? stats.kept / stats.proposed : 1 }, startedAt }), id)
     return json(request, { analysis_id: saved.id, ...saved }, 200, id)
   } catch (error) {
-    if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'analyze', outcome: 'error', attempts, errorCode: classifyError(error), startedAt }), id)
-    console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown', code: classifyError(error) })); return json(request, { error: 'Não foi possível concluir a análise.' }, 500, id) }
+    const code = classifyError(error)
+    const refundable = isRefundable(code)
+    if (refundable && quotaEventId) await refundUsage(quotaEventId)
+    if (actor) await recordRun(actor.client, actor.userId, buildRun({ kind: 'analyze', outcome: 'error', attempts, errorCode: code, startedAt }), id)
+    console.error(JSON.stringify({ request_id: id, error: error instanceof Error ? error.name : 'unknown', code })); if (refundable) return json(request, { error: PROVIDER_BUSY_MESSAGE }, 503, id); return json(request, { error: 'Não foi possível concluir a análise.' }, 500, id) }
 })
