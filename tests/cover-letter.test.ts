@@ -95,3 +95,24 @@ describe('qualidade pedida à carta', () => {
     expect(prompt).toContain('Não copie frases inteiras do currículo')
   })
 })
+
+import { MIN_LETTER_WORDS, countWords, normalizeLetter } from '../supabase/functions/_shared/ai-output'
+
+describe('carta: despedida em parágrafo próprio e tamanho mínimo', () => {
+  it('separa a despedida colada ao último parágrafo (caso real do teste em produção)', () => {
+    const raw = 'Prezados,\n\nTexto.\n\nEstou à disposição para conversar sobre como minhas competências podem agregar valor. Atenciosamente,\n\nCarolina'
+    expect(normalizeLetter(raw)).toBe('Prezados,\n\nTexto.\n\nEstou à disposição para conversar sobre como minhas competências podem agregar valor.\n\nAtenciosamente,\n\nCarolina')
+    expect(normalizeLetter('Oi.\n\nVaga. Um abraço,\nAna')).toBe('Oi.\n\nVaga.\n\nUm abraço,\nAna')
+  })
+  it('não mexe em despedida que já está em parágrafo próprio nem em frases comuns', () => {
+    const ok = 'Prezados,\n\nTenho experiência. Atenciosamente não é aqui.\n\nAtenciosamente,\nAna'
+    expect(normalizeLetter(ok)).toBe(ok)
+  })
+  it('conta palavras ignorando pontuação solta e exige o mínimo para aceitar a carta', () => {
+    expect(countWords('Olá,  tudo bem? — sim')).toBe(4)
+    expect(MIN_LETTER_WORDS).toBe(130)
+  })
+  it('o prompt de nova tentativa pede mais palavras quando a carta ficou curta', () => {
+    expect(buildCoverLetterPrompt('v', 'c', '', 'profissional', { tooShort: true })).toContain('curta demais')
+  })
+})

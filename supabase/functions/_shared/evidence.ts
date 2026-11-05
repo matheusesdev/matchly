@@ -67,6 +67,27 @@ function supportedWithoutQuote(line: string, splitter: RegExp, sources: Locators
   return origins.includes('candidato') ? 'candidato' : 'curriculo'
 }
 
+/** Divide em frases (ponto final, ! ou ? seguidos de maiúscula ou número); abreviações como "Ltda. (varejo)" não dividem. */
+export function splitSentences(line: string): string[] {
+  return line.split(/(?<=[.!?])\s+(?=[\p{Lu}\d])/u).map((sentence) => sentence.trim()).filter(Boolean)
+}
+
+/** Cada frase precisa ter uma citação própria válida ou ser cópia fiel do original. Só vale com 2 frases ou mais. */
+function verifySentences(line: string, byLine: Map<string, string[]>, sources: Locators): { quote: string; source: EvidenceSource } | null {
+  const sentences = splitSentences(line)
+  if (sentences.length < 2) return null
+  const quotes: string[] = []
+  const origins: EvidenceSource[] = []
+  for (const sentence of sentences) {
+    const cited = (byLine.get(normalizeForMatch(sentence)) ?? []).map((quote) => ({ quote, source: sources.quote(quote) })).find((candidate) => candidate.source)
+    if (cited && cited.source) { quotes.push(cited.quote.replace(/\s+/g, ' ').trim()); origins.push(cited.source); continue }
+    const literal = supportedWithoutQuote(sentence, CLAIM_SPLIT, sources)
+    if (!literal) return null
+    quotes.push(sentence); origins.push(literal)
+  }
+  return { quote: [...new Set(quotes)].join(' … ').slice(0, MAX_QUOTE_LENGTH), source: origins.includes('candidato') ? 'candidato' : 'curriculo' }
+}
+
 type Locators = { quote: (quote: string) => EvidenceSource | null; term: (term: string) => EvidenceSource | null }
 
 /** Localiza citações (mínimo de 6 caracteres) e termos curtos (palavra inteira, ex.: "SAP") nas fontes. */
@@ -151,6 +172,9 @@ export function verifyEvidence(original: string, optimizedText: string, raw: Raw
     // termo dela existir no original (ex.: lista de habilidades). Habilidade inventada não passa e é sinalizada.
     const origin = supportedWithoutQuote(line, isClaim ? CLAIM_SPLIT : TERM_SPLIT, sources)
     if (origin) { if (isClaim) items.push({ line, quote: line.slice(0, MAX_QUOTE_LENGTH), verified: true, source: origin }); continue }
+    // Linha de várias frases (ex.: o resumo, que sintetiza o currículo): vale se CADA frase tiver prova.
+    const bySentence = isClaim ? verifySentences(line, byLine, sources) : null
+    if (bySentence) { items.push({ line, quote: bySentence.quote, verified: true, source: bySentence.source }); continue }
     items.push({ line, quote: '', verified: false })
   }
   const verified = items.filter((item) => item.verified).length

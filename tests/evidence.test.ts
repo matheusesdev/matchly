@@ -180,3 +180,38 @@ Português (nativo) · Inglês intermediário (leitura técnica)`
     expect(contentLines('sem seções')).toEqual([])
   })
 })
+
+import { splitSentences } from '../supabase/functions/_shared/evidence'
+
+describe('resumo com várias frases (síntese do currículo)', () => {
+  const source = 'Analista financeira com mais de 8 anos de experiência em contas a pagar e conciliação bancária. Elaboro relatórios mensais de fluxo de caixa para a diretoria financeira.'
+  const summary = 'Analista financeira com mais de 8 anos de experiência em conciliação bancária e fechamento. Atuação em rotinas financeiras e relatórios para a diretoria.'
+  const text = `CAROLINA\nRESUMO\n${summary}`
+
+  it('divide em frases sem quebrar abreviações', () => {
+    expect(splitSentences('Foi gerente na Acme Ltda. (varejo) por 3 anos. Depois atuou na Beta S.A. com vendas.')).toEqual(['Foi gerente na Acme Ltda. (varejo) por 3 anos.', 'Depois atuou na Beta S.A. com vendas.'])
+    expect(splitSentences('Uma frase só.')).toEqual(['Uma frase só.'])
+  })
+
+  it('vale quando cada frase tem a sua citação, mesmo que a síntese não seja cópia de um trecho', () => {
+    const result = verifyEvidence(source, text, [
+      { line: 'Analista financeira com mais de 8 anos de experiência em conciliação bancária e fechamento.', source_quote: 'Analista financeira com mais de 8 anos de experiência' },
+      { line: 'Atuação em rotinas financeiras e relatórios para a diretoria.', source_quote: 'relatórios mensais de fluxo de caixa para a diretoria financeira' },
+    ])
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]).toMatchObject({ verified: true, source: 'curriculo' })
+  })
+
+  it('basta uma frase sem prova para a linha continuar sinalizada', () => {
+    const result = verifyEvidence(source, text, [
+      { line: 'Analista financeira com mais de 8 anos de experiência em conciliação bancária e fechamento.', source_quote: 'Analista financeira com mais de 8 anos de experiência' },
+      { line: 'Atuação em rotinas financeiras e relatórios para a diretoria.', source_quote: 'liderou a diretoria inteira' },
+    ])
+    expect(result.items[0].verified).toBe(false)
+  })
+
+  it('uma única citação genérica para a linha toda não basta quando as frases não têm prova própria', () => {
+    const result = verifyEvidence(source, text, [{ line: summary, source_quote: 'inexistente no original' }])
+    expect(result.items[0].verified).toBe(false)
+  })
+})

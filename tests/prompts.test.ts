@@ -24,3 +24,9 @@ describe('otimização realmente adaptada à vaga', () => {
     expect(buildOptimizationPrompt('v', 'c')).toContain('Nunca escreva que algo foi mantido inalterado')
   })
 })
+
+describe('evidência por frase', () => {
+  it('pede uma entrada por frase quando a linha tem mais de uma (resumo)', () => {
+    expect(buildOptimizationPrompt('v', 'c')).toContain('UMA entrada para CADA frase')
+  })
+})
